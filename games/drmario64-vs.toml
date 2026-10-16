@@ -11,7 +11,7 @@ A faithful remake of the two-player local versus mode of Dr. Mario 64: modes NOR
 Not affiliated with Nintendo; no game data is included. Sound effects come from your own ROM if you have one."""
 homepage = "https://github.com/jarvis-jhk/drmario64-vs"
 accent = "#e11d48"
-tier = 0
+tier = 3
 local_players = 2
 status = "preview"
 requires = "optional: your own Dr. Mario 64 (USA) ROM for sound effects — the game plays silently without it"
@@ -24,6 +24,18 @@ assets = { linux = "drmario64-vs-linux-x86_64.tar.gz", deck = "drmario64-vs-linu
 
 [launch]
 exec = { linux = "drmario64-vs/drmario64-vs.sh", deck = "drmario64-vs/drmario64-vs.sh", windows = "drmario64-vs/drmario64-vs.exe" }
+join = ["--warpzone-join", "{room}"]
+host = ["--warpzone-host"]
+
+[rooms]
+max_players = 2
+presets = [{ id = "1v1", label = "1 vs 1" }]
+display = [{ key = "mode", label = "Mode" }, { key = "wins", label = "Wins" }]
+
+[[ladder]]
+id = "1v1"
+title = "1 vs 1"
+teams = 2
 
 [[data]]
 id = "rom"
