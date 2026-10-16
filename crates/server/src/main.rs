@@ -14,6 +14,7 @@ mod boards;
 mod config;
 mod db;
 mod error;
+mod faults;
 mod ladder;
 mod modstore;
 mod relay;
@@ -47,6 +48,10 @@ impl log::Log for Logger {
     fn log(&self, r: &log::Record) {
         if self.enabled(r.metadata()) {
             eprintln!("{} {:<5} {}", warpzone_protocol::now(), r.level(), r.args());
+            if r.level() == log::Level::Error && r.target().starts_with("warpzone") {
+                let text = r.args().to_string();
+                faults::report(&text, &format!("{} ({})\n{text}", r.target(), r.file().unwrap_or("?")));
+            }
         }
     }
     fn flush(&self) {}
@@ -336,14 +341,17 @@ async fn main() {
             std::process::exit(2);
         }
     };
+    faults::init(cfg.fault_reports.clone(), &cfg.public_url);
     if let Err(e) = std::fs::create_dir_all(&cfg.data_dir) {
         eprintln!("{}: {e}", cfg.data_dir.display());
+        faults::report_now("cannot start: data_dir", &format!("{}: {e}", cfg.data_dir.display()));
         std::process::exit(2);
     }
     let key = load_key(&cfg.data_dir.join("server.key")).expect("server key");
     let conn = db::open(&cfg.data_dir.join("warpzone.db")).expect("database");
     let udp = relay::bind_udp(&cfg.udp_listen).unwrap_or_else(|e| {
         eprintln!("udp {}: {e}", cfg.udp_listen);
+        faults::report_now("cannot start: udp_listen", &format!("udp {}: {e}", cfg.udp_listen));
         std::process::exit(2);
     });
     let http: SocketAddr = cfg.http_listen.parse().expect("http_listen must be ip:port");

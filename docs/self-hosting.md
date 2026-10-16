@@ -93,6 +93,7 @@ warpzone.example.org {
 | `launcher` | none | GitHub release source for the launcher's download buttons (same shape as a descriptor's `[install]`) |
 | `source_url` | the project | where the website links for source and docs |
 | `legal_url` | none | imprint/contact page linked from every footer |
+| `fault_reports` | none | `{ url = "…", lane = "warpzone" }`: the server's own faults (500s, errors in background jobs, a failed start, panics) as a JSON POST `{"lane","kind":"bug","title","detail","source"}` each; identical faults once per 6 h, at most 20 per hour |
 
 `[limits]`:
 

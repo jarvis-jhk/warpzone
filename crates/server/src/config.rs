@@ -48,6 +48,24 @@ pub struct Config {
     pub legal_url: Option<String>,
     #[serde(default)]
     pub limits: LimitsConfig,
+    /// Optional: the server's own faults (500s, failed background jobs,
+    /// panics) as JSON POSTs.
+    #[serde(default)]
+    pub fault_reports: Option<FaultReports>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct FaultReports {
+    /// Gets `{"lane","kind":"bug","title","detail","source"}` per fault.
+    pub url: String,
+    /// Passed through as `lane`, for receivers that sort reports.
+    #[serde(default = "default_lane")]
+    pub lane: String,
+}
+
+fn default_lane() -> String {
+    "warpzone".into()
 }
 
 #[derive(Deserialize, Debug, Clone)]

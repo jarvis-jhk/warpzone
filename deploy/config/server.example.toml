@@ -28,6 +28,12 @@ trust_forwarded_for = true
 # Optional: plain-text POST for every mod submission and report (ntfy works).
 # notify_url = "https://ntfy.sh/your-private-topic"
 
+# Optional: the server's own faults (500s, failed background jobs, panics) as
+# JSON POSTs {"lane","kind":"bug","title","detail","source"}. Keep the URL private.
+# [fault_reports]
+# url = "https://example.org/your-private-report-endpoint"
+# lane = "warpzone"
+
 # Optional: linked from every page footer.
 # legal_url = "https://example.org/imprint"
 

@@ -1,5 +1,19 @@
 # Notes
 
+- 2026-10-16 (request t_mvb4dzeyi7k6y): server fault reporting. New optional
+  `[fault_reports] url/lane` in server.toml: every log::error from the server's
+  own code (ApiError::internal = every 500, ladder start/finalize, udp, broken
+  staff file), failed starts and panics (hook sends synchronously; release
+  builds abort on panic) go out as JSON to JARVIS's report API. Dedup 6 h per
+  title, max 20/h. Tested end to end against a local receiver. The report URL
+  is SECRET and the repo is public: it lives only in vtt
+  /root/warpzone/config/server.toml. NOT on vtt yet — Config is
+  deny_unknown_fields, so add `[fault_reports] url = "<report URL>"` (lane
+  defaults to "warpzone") only after a release containing this is deployed
+  (0.1.2 deploy is still pending too). Launcher/libwarpzone run on players'
+  machines and must never carry the secret; not wired there. Docker
+  healthcheck failures are not reported (would need a host-side watcher).
+
 - 2026-10-16 (report t_mvb3w98cbfzls, furries lane): funny-furries [mods]
   (arena/weapon/rules/skin/sound, 20 MiB, data only, install = "extract") is
   on branch funny-furries-mods (check-games ok; the fields exist since 0.1.0,
