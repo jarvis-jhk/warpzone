@@ -30,8 +30,6 @@ assets = { windows = "OpenTS-*-x64.zip" }
 
 [launch]
 exec = { windows = "Game.exe" }
-# The launcher copies the Tiberian Sun data into tibsun/ beside the engine.
-args = ["-DATADIR=tibsun"]
 
 [rooms]
 max_players = 8
@@ -41,9 +39,10 @@ display = [{ key = "campaign", label = "Campaign" }]
 [mods]
 categories = [{ id = "map", label = "Maps" }, { id = "mission", label = "Mission variants" }]
 max_size_mb = 50
-# Relative names are searched in the data directory, where the stock campaigns
-# keep their missions; a variant must sit beside its original.
-mounts = { map = "tibsun/Maps", mission = "tibsun/Maps/Missions" }
+# The engine finds loose maps and mission variants in its own folder; the stock
+# campaigns start their missions without a directory, so variants belong there.
+# The Tiberian Sun folder the launcher found is never written to.
+mounts = { map = ".", mission = "." }
 
 [tier0]
 transport = "udp"
@@ -91,8 +90,8 @@ label = "Tiberian Sun and Firestorm game files"
 description = "The folder of an installed Tiberian Sun (it contains TIBSUN.MIX). EA released Tiberian Sun as freeware; it is also part of the Command & Conquer Ultimate Collection."
 # A stock install keeps TIBSUN.MIX at the top; a CnCNet install keeps it in MIX/.
 files = ["./TIBSUN.MIX", "MIX/TIBSUN.MIX"]
-copy_to = "{install}/tibsun"
-present = ["{install}/tibsun/TIBSUN.MIX", "{install}/tibsun/MIX/TIBSUN.MIX"]
+# The engine (0.9.0 and later) reads the folder in WARPZONE_DATA_TIBSUN in place;
+# nothing is copied, and -DATADIR on the command line would take precedence.
 steam = ["Command and Conquer Tiberian Sun", "Command & Conquer Tiberian Sun"]
 gog = ["Tiberian Sun"]
 free = [{ label = "CnCNet (free download)", url = "https://cncnet.org/tiberian-sun" }]
