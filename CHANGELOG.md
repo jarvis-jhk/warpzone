@@ -7,6 +7,9 @@
   in earlier sessions. `WZ_EVENT_MATCH_FOUND` now also carries `queue`.
 - libwarpzone: while the server is unreachable, events are delivered again —
   the promised `WZ_EVENT_ERROR {op:login}` was held back until a login succeeded.
+- Launcher (tier 0): descriptors can set `[tier0] relaunch_linger` for games
+  that restart themselves between missions; the tunnel and room stay up until
+  the game has been quiet that long. The staged seed now stays below 2^31.
 
 ## 0.1.1
 

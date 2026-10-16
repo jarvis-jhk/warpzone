@@ -217,6 +217,12 @@ Port={{port}}
 
 File paths are relative to the game executable's directory.
 
+Games that restart themselves — one process per mission, the next one started
+by the game with the same launch files — set `relaunch_linger = 120` (seconds,
+at most 3600). The tunnel and the room then outlive the launched process: the
+session ends only once the game port has sent nothing for that long (or the
+player leaves). Without it the session ends when the process exits.
+
 ### Templates
 
 | Key | Value |

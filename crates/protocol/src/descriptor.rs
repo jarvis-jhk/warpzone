@@ -352,6 +352,15 @@ pub struct Tier0 {
     /// Arguments for the staged start.
     #[serde(default)]
     pub args: Vec<String>,
+    /// For games that restart themselves (a new process per mission): seconds
+    /// the tunnel and room stay up after the launched process exits, renewed
+    /// while the game port keeps sending. 0 = the session ends with the process.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub relaunch_linger: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -431,6 +440,11 @@ impl GameDescriptor {
             && !matches!(t.transport.as_str(), "udp" | "tcp")
         {
             return bad("tier0.transport must be udp or tcp".into());
+        }
+        if let Some(t) = &self.tier0
+            && t.relaunch_linger > 3600
+        {
+            return bad("tier0.relaunch_linger is at most 3600 seconds".into());
         }
         for d in &self.data {
             if !valid_slug(&d.id) || d.files.is_empty() {
@@ -535,5 +549,20 @@ mod tests {
         d.validate().unwrap();
         assert_eq!(d.features(), vec!["online", "ranked", "leaderboards", "mods"]);
         assert_eq!(d.preset_label("ffa"), Some("Free for all"));
+    }
+
+    #[test]
+    fn relaunch_linger_is_optional_and_not_serialized_when_off() {
+        let src =
+            |extra: &str| format!("id = \"demo\"\nname = \"Demo\"\ntagline = \"A demo\"\ntier = 0\n[tier0]\ntransport = \"udp\"\ngame_port = 1234\n{extra}");
+        let off: GameDescriptor = toml::from_str(&src("")).unwrap();
+        assert_eq!(off.tier0.as_ref().unwrap().relaunch_linger, 0);
+        // Launchers before 0.1.2 reject unknown fields: leave it out unless set.
+        assert!(!serde_json::to_string(&off).unwrap().contains("relaunch_linger"));
+        let on: GameDescriptor = toml::from_str(&src("relaunch_linger = 120")).unwrap();
+        on.validate().unwrap();
+        assert_eq!(on.tier0.unwrap().relaunch_linger, 120);
+        let long: GameDescriptor = toml::from_str(&src("relaunch_linger = 7200")).unwrap();
+        assert!(long.validate().is_err());
     }
 }
