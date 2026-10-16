@@ -55,15 +55,15 @@ mod tests {
     #[test]
     fn renders_each() {
         let mut ctx = Context::default();
-        ctx.values.insert("self.name".into(), "Jan".into());
-        for (n, p) in [("Anna", "40001"), ("Bob", "40002")] {
+        ctx.values.insert("self.name".into(), "Alex".into());
+        for (n, p) in [("Robin", "40001"), ("Bob", "40002")] {
             let mut m = BTreeMap::new();
             m.insert("name".into(), n.into());
             m.insert("port".into(), p.into());
             ctx.others.push(m);
         }
         let t = "[Settings]\nName={{self.name}}\n{{#each others}}[Other{{n}}]\nName={{name}}\nPort={{port}}\n{{/each}}";
-        assert_eq!(render(t, &ctx).unwrap(), "[Settings]\nName=Jan\n[Other1]\nName=Anna\nPort=40001\n[Other2]\nName=Bob\nPort=40002\n");
+        assert_eq!(render(t, &ctx).unwrap(), "[Settings]\nName=Alex\n[Other1]\nName=Robin\nPort=40001\n[Other2]\nName=Bob\nPort=40002\n");
         assert!(render("{{nope}}", &ctx).is_err());
     }
 }

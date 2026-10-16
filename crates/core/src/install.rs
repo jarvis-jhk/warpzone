@@ -69,7 +69,7 @@ pub fn installed(game: &str) -> Option<Installed> {
 
 /// SHA-256 of an asset as GitHub states it: the API's `digest` field, else
 /// the release's checksum file.
-fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksums: Option<&str>) -> Result<Option<(String, &'static str)>> {
+pub fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksums: Option<&str>) -> Result<Option<(String, &'static str)>> {
     for tag in [format!("v{version}"), version.to_string()] {
         let url = format!("https://api.github.com/repos/{repo}/releases/tags/{tag}");
         let Ok(bytes) = api.fetch(&url, 4 * 1024 * 1024) else { continue };
@@ -97,6 +97,55 @@ fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksums: O
         return Ok(None);
     }
     Ok(None)
+}
+
+/// Replace the running launcher (or any self-contained tool) with the asset
+/// of `release` for this platform: verified against GitHub, unpacked, and the
+/// file named `binary` swapped in. Takes effect on the next start.
+pub fn self_update(api: &Api, repo: &str, release: &ReleaseInfo, binary: &str) -> Result<String> {
+    let exe = std::env::current_exe()?;
+    let (_, asset) = asset_for(release, platform()).ok_or_else(|| Error::Other("no launcher build for this platform".into()))?;
+    let digest = github_digest(api, repo, &release.version, &asset.name, Some("SHA256SUMS"))?;
+    let dir = exe.parent().ok_or_else(|| Error::Other("cannot locate the launcher".into()))?;
+    let staging = dir.join(".warpzone-update");
+    let _ = std::fs::remove_dir_all(&staging);
+    std::fs::create_dir_all(&staging)?;
+    let file = staging.join(&asset.name);
+    api.fetch_to(&asset.url, digest.as_ref().map(|d| d.0.as_str()), &file, &mut |_| {})?;
+    let unpacked = staging.join("files");
+    if asset.name.ends_with(".zip") {
+        crate::modstore::unzip_safe(&file, &unpacked)?;
+    } else {
+        untar_stream(&mut std::fs::File::open(&file)?, &unpacked)?;
+    }
+    let mut found = None;
+    let mut stack = vec![unpacked.clone()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d)?.flatten() {
+            if e.path().is_dir() {
+                stack.push(e.path());
+            } else if e.file_name().to_string_lossy() == binary {
+                found = Some(e.path());
+            }
+        }
+    }
+    let new = found.ok_or_else(|| Error::Other(format!("{binary} not found in {}", asset.name)))?;
+    // Windows cannot overwrite a running executable but can rename it.
+    let old = exe.with_extension("old");
+    let _ = std::fs::remove_file(&old);
+    std::fs::rename(&exe, &old)?;
+    if let Err(e) = std::fs::copy(&new, &exe) {
+        let _ = std::fs::rename(&old, &exe);
+        return Err(e.into());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755))?;
+        let _ = std::fs::remove_file(&old);
+    }
+    let _ = std::fs::remove_dir_all(&staging);
+    Ok(release.version.clone())
 }
 
 /// Install (or update to) `release`. `progress(bytes)` while downloading.

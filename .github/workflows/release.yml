@@ -38,12 +38,13 @@ jobs:
           done
           # C library: x86_64 glibc, aarch64 glibc 2.27 (PortMaster handhelds), mingw.
           cargo build --release -p warpzone-capi
-          pkg() { d=libwarpzone-$V-$1; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp $2 $d/lib/; cp LICENSE-MIT LICENSE-APACHE $d/; tar -czf dist/$d.tar.gz $d; rm -rf $d; }
-          pkg x86_64-linux-gnu "target/release/libwarpzone.a target/release/libwarpzone.so"
+          libs() { cargo rustc -q --release -p warpzone-capi --crate-type staticlib $1 -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' || true; }
+          pkg() { d=libwarpzone-$V-$1; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp $2 $d/lib/; cp LICENSE-MIT LICENSE-APACHE $d/; echo "$3" > $d/NATIVE_LIBS.txt; tar -czf dist/$d.tar.gz $d; rm -rf $d; }
+          pkg x86_64-linux-gnu "target/release/libwarpzone.a target/release/libwarpzone.so" "$(libs)"
           cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.27 -p warpzone-capi
-          pkg aarch64-linux-gnu "target/aarch64-unknown-linux-gnu/release/libwarpzone.a target/aarch64-unknown-linux-gnu/release/libwarpzone.so"
+          pkg aarch64-linux-gnu "target/aarch64-unknown-linux-gnu/release/libwarpzone.a target/aarch64-unknown-linux-gnu/release/libwarpzone.so" "native-static-libs: -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc"
           cargo zigbuild --release --target x86_64-pc-windows-gnu -p warpzone-capi
-          d=libwarpzone-$V-x86_64-windows-gnu; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp target/x86_64-pc-windows-gnu/release/libwarpzone.a target/x86_64-pc-windows-gnu/release/warpzone.dll $d/lib/; (cd $d/.. && zip -qr dist/$d.zip $d); rm -rf $d
+          d=libwarpzone-$V-x86_64-windows-gnu; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp target/x86_64-pc-windows-gnu/release/libwarpzone.a target/x86_64-pc-windows-gnu/release/warpzone.dll $d/lib/; echo "native-static-libs: -lkernel32 -ladvapi32 -lntdll -luserenv -lws2_32 -lbcrypt -ldbghelp" > $d/NATIVE_LIBS.txt; zip -qr dist/$d.zip $d; rm -rf $d
           # CLI and launcher for Linux.
           cargo zigbuild --release --target x86_64-unknown-linux-musl -p warpzone-cli
           d=wz-$V-x86_64-linux; mkdir -p $d; cp target/x86_64-unknown-linux-musl/release/wz $d/; tar -czf dist/$d.tar.gz $d; rm -rf $d
@@ -68,6 +69,7 @@ jobs:
           cargo build --release -p warpzone-capi -p warpzone-cli -p warpzone-launcher
           d=libwarpzone-$V-x86_64-windows-msvc; mkdir -p $d/lib $d/include
           cp crates/capi/include/warpzone.h $d/include/; cp target/release/warpzone.lib target/release/warpzone.dll target/release/warpzone.dll.lib $d/lib/ || true
+          cargo rustc -q --release -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' > $d/NATIVE_LIBS.txt || true
           7z a dist/$d.zip $d >/dev/null
           d=wz-$V-windows-x86_64; mkdir -p $d; cp target/release/wz.exe $d/; 7z a dist/$d.zip $d >/dev/null
           d=warpzone-launcher-$V-windows-x86_64; mkdir -p $d; cp target/release/warpzone.exe $d/; 7z a dist/$d.zip $d >/dev/null

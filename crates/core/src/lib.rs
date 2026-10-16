@@ -35,9 +35,13 @@ pub mod tunnel;
 
 pub use warpzone_protocol as protocol;
 
-/// The public instance run by the project. Games and tools use it unless
-/// configured otherwise (`WARPZONE_SERVER`).
-pub const DEFAULT_SERVER: &str = "https://warpzone.virtualtabletop.io";
+/// The instance games and tools use unless configured otherwise
+/// (`WARPZONE_SERVER` at run time). Ecosystems that run their own instance set
+/// it when building: `WARPZONE_DEFAULT_SERVER=https://play.example.org cargo build`.
+pub const DEFAULT_SERVER: &str = match option_env!("WARPZONE_DEFAULT_SERVER") {
+    Some(s) => s,
+    None => "https://warpzone.virtualtabletop.io",
+};
 
 /// Server URL from `WARPZONE_SERVER`, else [`DEFAULT_SERVER`].
 pub fn server_url() -> String {

@@ -246,7 +246,7 @@ pub struct Launch {
 #[serde(deny_unknown_fields)]
 pub struct Rooms {
     pub max_players: u32,
-    /// Presets name a room (`"Jan's 2v2"`) instead of free text.
+    /// Presets name a room (`"Alex's 2v2"`) instead of free text.
     #[serde(default)]
     pub presets: Vec<Preset>,
     /// Metadata keys the browser shows, in order.

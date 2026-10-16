@@ -155,6 +155,8 @@ pub struct App {
     pub play_after: Option<String>,
     pub exit_after_launch: bool,
     pub ctx: Option<egui::Context>,
+    pub self_updated: Option<String>,
+    pub confirm_delete: bool,
 }
 
 fn style(ctx: &egui::Context) {
@@ -249,10 +251,39 @@ impl App {
             play_after: None,
             exit_after_launch: false,
             ctx: Some(cc.egui_ctx.clone()),
+            self_updated: None,
+            confirm_delete: false,
         };
         app.login();
         app.refresh_catalog();
+        app.check_self_update();
         app
+    }
+
+    /// Keep the launcher itself current (verified against GitHub like games).
+    pub fn check_self_update(&mut self) {
+        if !self.settings.auto_update || std::env::var_os("WARPZONE_NO_SELF_UPDATE").is_some() {
+            return;
+        }
+        let api = self.api.clone();
+        self.jobs.run(move || {
+            let current = env!("CARGO_PKG_VERSION");
+            let r = api.updates("launcher", current).and_then(|u| match (u.update_available, u.latest) {
+                (true, Some(rel)) => {
+                    let bin = if cfg!(windows) { "warpzone.exe" } else { "warpzone" };
+                    install::self_update(&api, "jarvis-jhk/warpzone", &rel, bin).map(Some)
+                }
+                _ => Ok(None),
+            });
+            Box::new(move |app: &mut App| match r {
+                Ok(Some(v)) => {
+                    app.self_updated = Some(v.clone());
+                    app.toast(format!("Warpzone {v} is installed — it starts next time"));
+                }
+                Ok(None) => {}
+                Err(e) => log::warn!("launcher self-update: {e}"),
+            })
+        });
     }
 
     pub fn toast(&mut self, m: impl Into<String>) {
@@ -1867,6 +1898,34 @@ impl App {
                 });
                 if self.recovery.is_some() {
                     ui.label(RichText::new("Anyone with this code can play as you. Write it down and keep it private.").color(WARN).size(12.5));
+                }
+                if self.account.is_some() {
+                    ui.horizontal(|ui| {
+                        if !self.confirm_delete {
+                            if ui.button("Delete account…").clicked() {
+                                self.confirm_delete = true;
+                            }
+                        } else {
+                            ui.label(RichText::new("Delete your account, ratings and scores for good?").color(WARN));
+                            if ui.button("Yes, delete").clicked() {
+                                self.confirm_delete = false;
+                                let api = self.api.clone();
+                                self.jobs.run(move || {
+                                    let r = api.delete_account();
+                                    Box::new(move |app: &mut App| match r {
+                                        Ok(_) => {
+                                            app.account = None;
+                                            app.toast("Account deleted");
+                                        }
+                                        Err(e) => app.toast(e.to_string()),
+                                    })
+                                });
+                            }
+                            if ui.button("Cancel").clicked() {
+                                self.confirm_delete = false;
+                            }
+                        }
+                    });
                 }
             });
             ui.add_space(8.0);

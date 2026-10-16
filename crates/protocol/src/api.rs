@@ -221,7 +221,7 @@ pub struct CreateRoom {
     #[serde(default)]
     pub audience: Audience,
     /// One of the game's room presets (`rooms.presets` in its descriptor);
-    /// it names the room ("Jan's 2v2").
+    /// it names the room ("Alex's 2v2").
     #[serde(default)]
     pub preset: Option<String>,
     /// Game-defined key/values the browser shows (keys the descriptor lists

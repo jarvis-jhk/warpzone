@@ -101,7 +101,7 @@ fn main() {
                     steps: vec![
                         ("first-run".into(), app::Tab::Library, None, true),
                         ("library".into(), app::Tab::Library, None, false),
-                        ("game-page".into(), app::Tab::Library, first.or(Some("super-mario-land-port".into())), false),
+                        ("game-page".into(), app::Tab::Library, first.or(Some("funny-furries".into())), false),
                         ("rooms".into(), app::Tab::Rooms, None, false),
                         ("ladder".into(), app::Tab::Ladder, None, false),
                         ("mods".into(), app::Tab::Mods, None, false),
