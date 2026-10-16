@@ -2,8 +2,12 @@
 # campaigns. Its network game uses UDP between machines and can be started from
 # a SPAWN.INI, so the launcher can host it without any change to the game
 # (integration tier 0): it tunnels each player's UDP port over Warpzone and
-# writes SPAWN.INI on every machine. EXPERIMENTAL: the template below is a
-# skirmish-style network game; the opents-coop lane verifies and extends it.
+# writes SPAWN.INI on every machine. The staged game is a shared-house campaign:
+# every player commands the mission's player house. Campaign= (fork 0.7.0)
+# names the campaign by its [Battles] identifier and starts its first mission.
+# EXPERIMENTAL: the game starts a new process for each next mission or replay,
+# and the launcher ends the tunnel when the first process exits, so only the
+# first mission is playable through the launcher for now.
 id = "opents-coop"
 name = "OpenTS Co-op"
 tagline = "Tiberian Sun, rebuilt: shared-house co-op campaigns — several players, one force."
@@ -14,7 +18,7 @@ The Warpzone launcher can stage its network games without port forwarding by tun
 homepage = "https://github.com/jarvis-jhk/opents-coop"
 accent = "#84cc16"
 tier = 0
-status = "launcher lobby experimental"
+status = "launcher co-op campaign experimental"
 requires = "original Tiberian Sun + Firestorm data; Windows (or Wine)"
 
 motif = "tanks"
@@ -26,27 +30,35 @@ assets = { windows = "OpenTS-*-x64.zip" }
 
 [launch]
 exec = { windows = "Game.exe" }
+# The launcher copies the Tiberian Sun data into tibsun/ beside the engine.
+args = ["-DATADIR=tibsun"]
 
 [rooms]
 max_players = 8
-presets = [{ id = "skirmish", label = "network game" }]
-display = [{ key = "map", label = "Map" }]
+presets = [{ id = "coop", label = "co-op campaign" }]
+display = [{ key = "campaign", label = "Campaign" }]
 
 [mods]
 categories = [{ id = "map", label = "Maps" }, { id = "mission", label = "Mission variants" }]
 max_size_mb = 50
-mounts = { map = "maps", mission = "missions" }
+# Relative names are searched in the data directory, where the stock campaigns
+# keep their missions; a variant must sit beside its original.
+mounts = { map = "tibsun/Maps", mission = "tibsun/Maps/Missions" }
 
 [tier0]
 transport = "udp"
 game_port = 1234
 args = ["-SPAWN"]
 settings = [
-  { key = "credits", label = "Starting credits", options = ["5000", "10000", "20000"], default = "10000" },
-  { key = "speed", label = "Game speed (0 fastest)", options = ["0", "1", "2", "3", "4"], default = "2" },
-  { key = "scenario", label = "Scenario file", options = ["spawnmap.ini"], default = "spawnmap.ini" },
+  { key = "campaign", label = "Campaign", options = ["GDI1", "NOD1", "GDIFS", "NODFS"], default = "GDI1" },
+  { key = "player_difficulty", label = "Player difficulty (0 easy, 1 normal, 2 hard)", options = ["0", "1", "2"], default = "1" },
+  { key = "computer_difficulty", label = "Computer difficulty (0 hard, 1 normal, 2 easy)", options = ["0", "1", "2"], default = "1" },
+  { key = "speed", label = "Game speed (0 fastest)", options = ["0", "1", "2", "3", "4", "5", "6"], default = "1" },
 ]
 
+# The player with the lowest Color (the host, seat 0) chooses the mission
+# version and the player-by-force control matrix. ConnTimeout=36000 lets the
+# others wait up to 9.6 minutes for that choice, as the game's own lobby does.
 [tier0.files]
 "SPAWN.INI" = """
 [Settings]
@@ -55,17 +67,20 @@ Side=0
 Color={{self.seat}}
 Port={{game_port}}
 Host={{self.host_yesno}}
-Scenario={{setting.scenario}}
+IsSinglePlayer=yes
+Campaign={{setting.campaign}}
+DifficultyModeHuman={{setting.player_difficulty}}
+DifficultyModeComputer={{setting.computer_difficulty}}
 GameSpeed={{setting.speed}}
-Credits={{setting.credits}}
+Firestorm=yes
 Seed={{seed}}
-ConnTimeout=3600
+ConnTimeout=36000
 {{#each others}}
 [Other{{n}}]
 Name={{name}}
 Side=0
 Color={{seat}}
-Ip=127.0.0.1
+Ip={{ip}}
 Port={{port}}
 {{/each}}
 """
@@ -74,7 +89,10 @@ Port={{port}}
 id = "tibsun"
 label = "Tiberian Sun and Firestorm game files"
 description = "The folder of an installed Tiberian Sun (it contains TIBSUN.MIX). EA released Tiberian Sun as freeware; it is also part of the Command & Conquer Ultimate Collection."
-files = ["./TIBSUN.MIX"]
+# A stock install keeps TIBSUN.MIX at the top; a CnCNet install keeps it in MIX/.
+files = ["./TIBSUN.MIX", "MIX/TIBSUN.MIX"]
+copy_to = "{install}/tibsun"
+present = ["{install}/tibsun/TIBSUN.MIX", "{install}/tibsun/MIX/TIBSUN.MIX"]
 steam = ["Command and Conquer Tiberian Sun", "Command & Conquer Tiberian Sun"]
 gog = ["Tiberian Sun"]
 free = [{ label = "CnCNet (free download)", url = "https://cncnet.org/tiberian-sun" }]
