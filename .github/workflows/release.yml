@@ -24,12 +24,18 @@ jobs:
         with:
           version: 0.13.0
       - run: cargo install --locked cargo-zigbuild
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: |
           set -eux
           V=${GITHUB_REF_NAME#v}
-          mkdir -p dist
+          mkdir -p dist notices
+          # Licenses and notices of the statically linked Rust crates, in every archive.
+          for c in capi cli launcher; do tools/third-party-notices.sh warpzone-$c notices/$c.html; done
+          legal() { cp LICENSE-MIT LICENSE-APACHE $1/; cp notices/$2.html $1/THIRD-PARTY-NOTICES.html; }
           # Server: static musl binaries.
           for t in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
             cargo zigbuild --release --target $t -p warpzone-server
@@ -39,17 +45,20 @@ jobs:
           # C library: x86_64 glibc, aarch64 glibc 2.27 (PortMaster handhelds), mingw.
           cargo build --release -p warpzone-capi
           libs() { cargo rustc -q --release -p warpzone-capi --crate-type staticlib $1 -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' || true; }
-          pkg() { d=libwarpzone-$V-$1; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp $2 $d/lib/; cp LICENSE-MIT LICENSE-APACHE $d/; echo "$3" > $d/NATIVE_LIBS.txt; tar -czf dist/$d.tar.gz $d; rm -rf $d; }
+          pkg() { d=libwarpzone-$V-$1; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp $2 $d/lib/; legal $d capi; echo "$3" > $d/NATIVE_LIBS.txt; tar -czf dist/$d.tar.gz $d; rm -rf $d; }
           pkg x86_64-linux-gnu "target/release/libwarpzone.a target/release/libwarpzone.so" "$(libs)"
           cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.27 -p warpzone-capi
           pkg aarch64-linux-gnu "target/aarch64-unknown-linux-gnu/release/libwarpzone.a target/aarch64-unknown-linux-gnu/release/libwarpzone.so" "native-static-libs: -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc"
           cargo zigbuild --release --target x86_64-pc-windows-gnu -p warpzone-capi
-          d=libwarpzone-$V-x86_64-windows-gnu; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp target/x86_64-pc-windows-gnu/release/libwarpzone.a target/x86_64-pc-windows-gnu/release/warpzone.dll $d/lib/; echo "native-static-libs: -lkernel32 -ladvapi32 -lntdll -luserenv -lws2_32 -lbcrypt -ldbghelp" > $d/NATIVE_LIBS.txt; zip -qr dist/$d.zip $d; rm -rf $d
+          d=libwarpzone-$V-x86_64-windows-gnu; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp target/x86_64-pc-windows-gnu/release/libwarpzone.a target/x86_64-pc-windows-gnu/release/warpzone.dll $d/lib/; legal $d capi; echo "native-static-libs: -lkernel32 -ladvapi32 -lntdll -luserenv -lws2_32 -lbcrypt -ldbghelp" > $d/NATIVE_LIBS.txt; zip -qr dist/$d.zip $d; rm -rf $d
           # CLI and launcher for Linux.
           cargo zigbuild --release --target x86_64-unknown-linux-musl -p warpzone-cli
-          d=wz-$V-x86_64-linux; mkdir -p $d; cp target/x86_64-unknown-linux-musl/release/wz $d/; tar -czf dist/$d.tar.gz $d; rm -rf $d
+          d=wz-$V-x86_64-linux; mkdir -p $d; cp target/x86_64-unknown-linux-musl/release/wz $d/; legal $d cli; tar -czf dist/$d.tar.gz $d; rm -rf $d
           cargo build --release -p warpzone-launcher
-          d=warpzone-launcher-$V-linux-x86_64; mkdir -p $d; cp target/release/warpzone $d/; cp packaging/linux/* $d/ 2>/dev/null || true; tar -czf dist/$d.tar.gz $d; rm -rf $d
+          d=warpzone-launcher-$V-linux-x86_64; mkdir -p $d; cp target/release/warpzone packaging/linux/warpzone.desktop $d/; legal $d launcher; tar -czf dist/$d.tar.gz $d
+          # Self-updating AppImage (plus its .zsync for AppImageUpdate), with the same legal files.
+          bash packaging/linux/build-appimage.sh target/release/warpzone $V dist $d
+          rm -rf $d
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -61,20 +70,26 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.99.1
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
       - shell: bash
         run: |
           set -eux
           V=${GITHUB_REF_NAME#v}
-          mkdir -p dist
+          mkdir -p dist notices
+          for c in capi cli launcher; do tools/third-party-notices.sh warpzone-$c notices/$c.html; done
+          legal() { cp LICENSE-MIT LICENSE-APACHE $1/; cp notices/$2.html $1/THIRD-PARTY-NOTICES.html; }
           # Separately: warpzone.dll and warpzone.exe share warpzone.pdb (LNK1201 race, cargo#6313).
           cargo build --release -p warpzone-capi
           cargo build --release -p warpzone-cli -p warpzone-launcher
           d=libwarpzone-$V-x86_64-windows-msvc; mkdir -p $d/lib $d/include
           cp crates/capi/include/warpzone.h $d/include/; cp target/release/warpzone.lib target/release/warpzone.dll target/release/warpzone.dll.lib $d/lib/ || true
           cargo rustc -q --release -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' > $d/NATIVE_LIBS.txt || true
+          legal $d capi
           7z a dist/$d.zip $d >/dev/null
-          d=wz-$V-windows-x86_64; mkdir -p $d; cp target/release/wz.exe $d/; 7z a dist/$d.zip $d >/dev/null
-          d=warpzone-launcher-$V-windows-x86_64; mkdir -p $d; cp target/release/warpzone.exe $d/; 7z a dist/$d.zip $d >/dev/null
+          d=wz-$V-windows-x86_64; mkdir -p $d; cp target/release/wz.exe $d/; legal $d cli; 7z a dist/$d.zip $d >/dev/null
+          d=warpzone-launcher-$V-windows-x86_64; mkdir -p $d; cp target/release/warpzone.exe $d/; legal $d launcher; 7z a dist/$d.zip $d >/dev/null
       - uses: actions/upload-artifact@v4
         with:
           name: windows

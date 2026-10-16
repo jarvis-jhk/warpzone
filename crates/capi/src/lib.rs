@@ -156,7 +156,9 @@ fn event_parts(e: Event) -> (c_int, u32, u8, u8, Vec<u8>, Value) {
         Kicked { room, banned } => (14, 0, 0, 0, vec![], json!({ "room": room, "banned": banned })),
         RoomList(r) => (15, 0, 0, 0, vec![], json!(r)),
         Queued(q) => (16, 0, 0, 0, vec![], json!(q)),
-        MatchFound { match_id, room, host, teams } => (17, 0, 0, 0, vec![], json!({ "match_id": match_id, "room": room, "host": host, "teams": teams })),
+        MatchFound { match_id, queue, room, host, teams } => {
+            (17, 0, 0, 0, vec![], json!({ "match_id": match_id, "queue": queue, "room": room, "host": host, "teams": teams }))
+        }
         MatchFinished { match_id, state } => (18, 0, 0, 0, vec![], json!({ "match_id": match_id, "state": state })),
         MatchReported(m) => (19, 0, 0, 0, vec![], json!(m)),
         ScoreSubmitted { board, result } => (20, 0, 0, 0, vec![], json!({ "board": board, "result": result })),

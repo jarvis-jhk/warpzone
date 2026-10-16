@@ -8,6 +8,7 @@ The continuation of GTetrinet, the classic Tetrinet client: a portable C11 core 
 homepage = "https://github.com/jarvis-jhk/gtetrinet-ng"
 accent = "#22c55e"
 tier = 0
+local_players = 8
 
 motif = "blocks"
 

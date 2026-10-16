@@ -46,6 +46,10 @@ pub struct GameDescriptor {
     /// Hidden from the website and launcher (still served by id).
     #[serde(default)]
     pub hidden: bool,
+    /// Players on one machine with their own controllers (couch play); shown
+    /// as the controller icon. `None` = not stated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_players: Option<u32>,
     #[serde(default)]
     pub install: Option<Install>,
     #[serde(default)]
@@ -146,6 +150,10 @@ pub struct DataRequirement {
     /// place, so the launcher does not ask again.
     #[serde(default)]
     pub present: Vec<String>,
+    /// Nice to have, not needed to play (e.g. a ROM that only adds sound): the
+    /// launcher still looks for it and hands it over, but never blocks on it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub optional: bool,
     /// Fingerprints of known-good files. When present, the launcher checks a
     /// found file before anything is downloaded: verified, unknown or wrong.
     #[serde(default)]
@@ -201,8 +209,8 @@ pub struct Install {
     #[serde(default)]
     pub prerelease: bool,
     /// Platform → asset name pattern (`*` matches anything, e.g.
-    /// `s25coop-*-linux-x86_64.tar.gz`). Platforms: `linux`, `windows`,
-    /// `deck`, `portmaster`.
+    /// `s25coop-*-linux-x86_64.tar.gz`). Platforms: `linux`, `appimage`
+    /// (self-contained Linux build), `windows`, `deck`, `portmaster`.
     pub assets: BTreeMap<String, String>,
     /// Name of the checksum file in the release (`SHA256SUMS`), if any.
     #[serde(default)]
@@ -352,6 +360,19 @@ pub struct Tier0 {
     /// Arguments for the staged start.
     #[serde(default)]
     pub args: Vec<String>,
+    /// For games that restart themselves (a new process per mission): seconds
+    /// the tunnel and room stay up after the launched process exits, renewed
+    /// while the game port keeps sending. 0 = the session ends with the process.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub relaunch_linger: u32,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -381,12 +402,15 @@ impl GameDescriptor {
         if self.tier > 3 {
             return bad("tier must be 0..=3".into());
         }
+        if self.local_players.is_some_and(|n| n == 0 || n > 64) {
+            return bad("local_players must be 1..=64".into());
+        }
         if !matches!(self.season.as_str(), "monthly" | "quarterly" | "yearly") {
             return bad(format!("unknown season length {}", self.season));
         }
         if let Some(i) = &self.install {
             for p in i.assets.keys() {
-                if !matches!(p.as_str(), "linux" | "windows" | "deck" | "portmaster") {
+                if !matches!(p.as_str(), "linux" | "appimage" | "windows" | "deck" | "portmaster") {
                     return bad(format!("unknown platform {p}"));
                 }
             }
@@ -432,6 +456,11 @@ impl GameDescriptor {
         {
             return bad("tier0.transport must be udp or tcp".into());
         }
+        if let Some(t) = &self.tier0
+            && t.relaunch_linger > 3600
+        {
+            return bad("tier0.relaunch_linger is at most 3600 seconds".into());
+        }
         for d in &self.data {
             if !valid_slug(&d.id) || d.files.is_empty() {
                 return bad(format!("data {}: needs an id and file patterns", d.id));
@@ -463,9 +492,39 @@ impl GameDescriptor {
         f
     }
 
+    /// What the game can do today, for icons: (players online, mods usable,
+    /// ranked usable). Online needs tier 2+ (or a launcher lobby), mods tier 3
+    /// (or tier-0 mounts), ranked tier 2+. Declared-but-not-yet-supported
+    /// features come back as `planned`.
+    pub fn capabilities(&self) -> Capabilities {
+        let online_now = self.tier >= 2 || self.tier0.is_some();
+        let mods_now = self.tier >= 3 || (self.tier0.is_some() && self.mods.as_ref().is_some_and(|m| !m.mounts.is_empty()));
+        Capabilities {
+            local_players: self.local_players,
+            online_players: self.rooms.as_ref().map(|r| r.max_players),
+            online_now,
+            mods: self.mods.is_some(),
+            mods_now,
+            ladder: !self.ladder.is_empty(),
+            ladder_now: self.tier >= 2,
+        }
+    }
+
     pub fn preset_label(&self, id: &str) -> Option<&str> {
         self.rooms.as_ref()?.presets.iter().find(|p| p.id == id).map(|p| p.label.as_str())
     }
+}
+
+/// See [`GameDescriptor::capabilities`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Capabilities {
+    pub local_players: Option<u32>,
+    pub online_players: Option<u32>,
+    pub online_now: bool,
+    pub mods: bool,
+    pub mods_now: bool,
+    pub ladder: bool,
+    pub ladder_now: bool,
 }
 
 /// Glob match with `*` only (asset patterns, executable paths).
@@ -535,5 +594,39 @@ mod tests {
         d.validate().unwrap();
         assert_eq!(d.features(), vec!["online", "ranked", "leaderboards", "mods"]);
         assert_eq!(d.preset_label("ffa"), Some("Free for all"));
+    }
+
+    #[test]
+    fn relaunch_linger_is_optional_and_not_serialized_when_off() {
+        let src =
+            |extra: &str| format!("id = \"demo\"\nname = \"Demo\"\ntagline = \"A demo\"\ntier = 0\n[tier0]\ntransport = \"udp\"\ngame_port = 1234\n{extra}");
+        let off: GameDescriptor = toml::from_str(&src("")).unwrap();
+        assert_eq!(off.tier0.as_ref().unwrap().relaunch_linger, 0);
+        // Launchers before 0.1.2 reject unknown fields: leave it out unless set.
+        assert!(!serde_json::to_string(&off).unwrap().contains("relaunch_linger"));
+        let on: GameDescriptor = toml::from_str(&src("relaunch_linger = 120")).unwrap();
+        on.validate().unwrap();
+        assert_eq!(on.tier0.unwrap().relaunch_linger, 120);
+        let long: GameDescriptor = toml::from_str(&src("relaunch_linger = 7200")).unwrap();
+        assert!(long.validate().is_err());
+    }
+
+    /// Every descriptor the project ships parses, validates and is named by its id
+    /// (the server skips one that does not, which drops the game from the site).
+    #[test]
+    fn shipped_descriptors_are_valid() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../games");
+        let mut n = 0;
+        for e in std::fs::read_dir(&dir).unwrap().flatten() {
+            let p = e.path();
+            if p.extension().is_none_or(|x| x != "toml") {
+                continue;
+            }
+            let d: GameDescriptor = toml::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+            d.validate().unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+            assert_eq!(p.file_stem().unwrap(), d.id.as_str(), "{}", p.display());
+            n += 1;
+        }
+        assert!(n > 0);
     }
 }

@@ -31,6 +31,19 @@ port recorded in `<data>/launcher.port`) and exits, so invite links and
 `<data>` is `~/.local/share/warpzone` on Linux (or `$XDG_DATA_HOME/warpzone`),
 `%APPDATA%\warpzone` on Windows; `WARPZONE_HOME` overrides it.
 
+## The launcher updating itself
+
+At start (with *Update games automatically* on) the launcher asks the server
+whether a newer launcher exists. **As an AppImage** it downloads the new
+AppImage next to the running one, verifies it against GitHub's SHA-256 digest
+and renames it over the old file; the running copy stays mounted until it
+exits, so the new version starts next time. The AppImage also carries
+update information (`gh-releases-zsync`), so AppImageUpdate or AppImageLauncher
+can update it too. **Unpacked** (`.tar.gz`, `.zip`) it replaces its own
+executable the same way. Shortcuts, autostart entries and the `warpzone://`
+handler always point at the AppImage file (`$APPIMAGE`), never at its
+temporary mount. `WARPZONE_NO_SELF_UPDATE=1` turns self-updates off.
+
 ## Installing and updating
 
 One click: the launcher downloads the release asset for this platform and
@@ -43,6 +56,15 @@ The previous version stays for rollback; older ones are removed.
 
 With *Update games automatically* on, updates install in the background
 (when the launcher runs) and before every start.
+
+## Starting a game
+
+Play starts the game with its output in `<data>/games/<game>/last-run.log`,
+shows *Running*, and minimizes the launcher so the game (and its first-start
+dialogs) is in front; the launcher comes back when the game ends. If it ends
+with an error within 30 seconds, the game page shows why, with the last lines
+of that log. Found game files go to the game as `WARPZONE_DATA_<ID>`
+environment variables ([integration](integration.md#game-files-the-launcher-found)).
 
 ## Game files
 

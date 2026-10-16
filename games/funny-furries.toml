@@ -1,7 +1,9 @@
 # Funny Furries — JARVIS's SDL2 rebuild of the 1999 brawler.
-# Its roadmap's M3 is rollback online play with join codes, NAT traversal and a
-# relay fallback: exactly what Warpzone provides. Until the game integrates the
-# library (tier 2+), the rooms/ladder sections below are what it will use.
+# Since v0.4.0 it links libwarpzone: --warpzone-join/--warpzone-host, code
+# rooms, direct/relayed play and the three ranked queues below (tier 2). Not
+# yet: public room browser, host approval, leaderboards, mod sync. The mods
+# section stays commented out until the game syncs mods (tier 3), so neither
+# a "mods" badge nor the archive promises what the game cannot use yet.
 id = "funny-furries"
 name = "Funny Furries"
 tagline = "The chaotic 1999 couch brawler, rebuilt: up to four furries, one arena, far too many weapons."
@@ -11,7 +13,8 @@ A faithful SDL2 reimplementation of Funny Furries 2 Xmas, the Click & Create bra
 Rollback online play, ranked 1 vs 1, free-for-all and 2 vs 2 come through Warpzone."""
 homepage = "https://github.com/jarvis-jhk/funny-furries"
 accent = "#f59e0b"
-tier = 0
+tier = 2
+local_players = 4
 status = "preview"
 requires = "your own copy of Funny Furries 2 Xmas — the game imports it at first start"
 
@@ -37,14 +40,14 @@ presets = [
 ]
 display = [{ key = "arena", label = "Arena" }, { key = "mode", label = "Mode" }]
 
-[mods]
-categories = [
-  { id = "arena", label = "Arenas" },
-  { id = "skin", label = "Skins" },
-  { id = "weapon", label = "Weapons" },
-  { id = "sound", label = "Sounds" },
-]
-max_size_mb = 50
+# [mods]
+# categories = [
+#   { id = "arena", label = "Arenas" },
+#   { id = "skin", label = "Skins" },
+#   { id = "weapon", label = "Weapons" },
+#   { id = "sound", label = "Sounds" },
+# ]
+# max_size_mb = 50
 
 [[ladder]]
 id = "1v1"
@@ -67,4 +70,13 @@ id = "ff2xmas"
 label = "Funny Furries 2 Xmas (full version)"
 description = "The original game's funnyfurries.zip or its FF2xmas.cca file. Funny Furries imports it on first start; Warpzone only finds it for you."
 files = ["funnyfurries.zip", "FF2xmas.cca"]
-import_args = ["--import", "{path}"]
+free = [{ label = "Kliktopia archive", url = "https://kliktopia.org/details/funnyfurry2xmas.html" }]
+# The game's first-start launcher takes --import-copy; a bare --import is
+# ambiguous to it (--import-copy / --import-only) and exits with an error.
+import_args = ["--import-copy", "{path}"]
+# Written only after a successful import (Linux/Deck, then Windows).
+present = ["~/.local/share/funny-furries/selected.json", "~/AppData/Local/funny-furries/selected.json"]
+known = [
+  { label = "Full version ZIP (Kliktopia)", size = 1858506, sha1 = "d6902a149e94156966a11cc9662cd03780895629", sha256 = "9b2434fa0fc7f6929f105cfed1e01ac0668bf758da43aeffc2629ba02f690a35" },
+  { label = "Full version FF2xmas.cca", size = 3083402, sha1 = "af2e9d320029b952928b6698b07c297e04e61de4", sha256 = "4f1acb689b0becab6a2364ab47bbf9e361b9a385ad9d95ae24c64f1cd34bf22b" },
+]

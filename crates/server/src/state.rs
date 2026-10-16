@@ -220,6 +220,19 @@ impl Limiter {
         if self.allow(key, max, window) { Ok(()) } else { Err(ApiError::limited()) }
     }
 
+    /// Like [`Limiter::check`] without recording a hit: for limits that count
+    /// only what succeeded ([`Limiter::record`] afterwards).
+    pub fn peek(&self, key: &str, max: u32, window: Duration) -> Result<(), ApiError> {
+        let now = Instant::now();
+        let map = self.hits.lock().unwrap();
+        let used = map.get(key).map_or(0, |q| q.iter().filter(|t| now.duration_since(**t) <= window).count());
+        if used < max as usize { Ok(()) } else { Err(ApiError::limited()) }
+    }
+
+    pub fn record(&self, key: &str) {
+        self.hits.lock().unwrap().entry(key.to_string()).or_default().push_back(Instant::now());
+    }
+
     /// Forget keys without hits in the last day.
     pub fn sweep(&self) {
         let now = Instant::now();

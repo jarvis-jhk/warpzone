@@ -108,7 +108,7 @@ or an earlier approval is given; `code` rooms need the code (or invite);
 
 ## Events (long poll)
 
-`GET /events?after=<seq>&timeout=<1..30>` 🔑 → `{"events": [{"seq", "type", …}], "next"}`.
+`GET /events?after=<seq>&timeout=<0..30>` 🔑 → `{"events": [{"seq", "type", …}], "next"}`.
 Pass `next` as `after` in the next call. Events for an account (or, for
 staff keys without an account, the key):
 
@@ -126,7 +126,9 @@ staff keys without an account, the key):
 | `mod_submitted` | `game, name, version, author` | staff |
 | `mod_decision` | `game, name, version, decision, reason?` | the author |
 
-Queues keep the last 256 events.
+Queues keep the last 256 events. The queue is shared by every client of the account and
+holds events from before a client started: a new client should first call
+`?after=0&timeout=0` and start from its `next` (libwarpzone does).
 
 ## Ladder
 

@@ -93,6 +93,9 @@ fn engine(
     let mut started = false;
     let mut child: Option<std::process::Child> = None;
     let mut tunnel: Option<Tunnel> = None;
+    // After the process exits (relaunch_linger > 0): when the game port last
+    // sent, and the frame count then.
+    let mut linger: Option<(Instant, u64)> = None;
     let mut host = matches!(mode, Mode::Host { .. });
     let mut me = 0i64;
     let mut sent_request = false;
@@ -183,7 +186,7 @@ fn engine(
                         t.deliver(&mut client, &data);
                     }
                 }
-                Event::RoomClosed { .. } if child.is_none() => return Err("the room was closed".into()),
+                Event::RoomClosed { .. } if tunnel.is_none() => return Err("the room was closed".into()),
                 Event::Kicked { .. } => return Err("the host removed you".into()),
                 Event::Error { op, message, .. } => set(&|v| v.error = Some(format!("{op}: {message}"))),
                 _ => {}
@@ -217,7 +220,8 @@ fn engine(
                 Cmd::Start if host && !started => {
                     started = true;
                     client.set_closed(true);
-                    let seed: u32 = (warpzone_protocol::now() as u32).wrapping_mul(2654435761) | 1;
+                    // 1..=2^31-1: games read the seed into a signed int.
+                    let seed: u32 = ((warpzone_protocol::now() as u32).wrapping_mul(2654435761) & 0x7fff_ffff) | 1;
                     let msg = LobbyMsg::Start { players: players.clone(), settings: settings.clone(), seed }.encode();
                     client.broadcast(LOBBY_CHANNEL, &msg, true);
                     let route: HashMap<i64, u32> = client.peers().iter().filter_map(|p| Some((client.peer_account(*p)?, *p))).collect();
@@ -241,11 +245,32 @@ fn engine(
         if let Some(t) = tunnel.as_mut() {
             t.pump(&mut client);
         }
+        let mut ended = false;
         if let Some(c) = child.as_mut()
             && let Ok(Some(_)) = c.try_wait()
         {
             child = None;
+            if t0.relaunch_linger > 0 {
+                // The game may have started its successor (same port, same
+                // launch files): keep the tunnel until the game port goes quiet.
+                linger = tunnel.as_ref().map(|t| (Instant::now(), t.frames_out));
+            } else {
+                tunnel = None;
+                ended = true;
+            }
+        }
+        if let (Some((since, seen)), Some(t)) = (linger.as_mut(), tunnel.as_ref())
+            && t.frames_out != *seen
+        {
+            *since = Instant::now();
+            *seen = t.frames_out;
+        }
+        if linger.is_some_and(|(since, _)| since.elapsed() > Duration::from_secs(t0.relaunch_linger.into())) {
+            linger = None;
             tunnel = None;
+            ended = true;
+        }
+        if ended {
             client.broadcast(LOBBY_CHANNEL, &LobbyMsg::Ended.encode(), true);
             set(&|v| {
                 v.running = false;
@@ -256,7 +281,7 @@ fn engine(
                 client.set_closed(false);
             }
         }
-        std::thread::sleep(Duration::from_millis(if child.is_some() { 1 } else { 10 }));
+        std::thread::sleep(Duration::from_millis(if tunnel.is_some() { 1 } else { 10 }));
     }
 }
 

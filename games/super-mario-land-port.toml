@@ -12,6 +12,7 @@ Warpzone brings its mod archive (levels, worlds, tilesets, skins, Lua behaviours
 homepage = "https://github.com/jarvis-jhk/super-mario-land-port"
 accent = "#ef4444"
 tier = 0
+local_players = 1
 status = "in development"
 requires = "your own Super Mario Land ROM — none is included or downloadable here"
 

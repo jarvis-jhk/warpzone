@@ -246,7 +246,7 @@ Queues are declared in the descriptor (`[[ladder]]`: teams and team size).
 ```c
 wz_queue(wz, "1v1", NULL);            /* NULL ruleset = "stock" */
 /* WZ_EVENT_QUEUED       {"queued": true, "waiting": 3, ...}
-   WZ_EVENT_MATCH_FOUND  {"match_id","room","host","teams":[["Ann"],["Bob"]]}
+   WZ_EVENT_MATCH_FOUND  {"match_id","queue","room","host","teams":[["Ann"],["Bob"]]}
    (the library joins the match room automatically; play as usual) */
 wz_report_match(wz, match_id,
   "{\"placements\": [[17], [42]], \"state_hash\": \"9f2c…\"}");
@@ -289,6 +289,16 @@ Your game decides what a mod *is*; Warpzone delivers files.
   set is in `<data>/mods/<game>/active.lock.json`.
 * Show the "mods for this game may contain code" warning if your descriptor
   sets `contains_code`.
+
+## Game files the launcher found
+
+For every `[[data]]` requirement the launcher found a source for, it starts the
+game with `WARPZONE_DATA_<ID>=<path>` in the environment (`id = "rom"` →
+`WARPZONE_DATA_ROM`; upper case, `-` and `.` become `_`), on every start, and
+with the descriptor's `import_args` until the `present` path exists. Read the
+variable at start: import from it if you have not yet, or simply use the
+files there. That way the player never has to point your game at files the
+launcher already found.
 
 ## 7. Updates and changelogs
 

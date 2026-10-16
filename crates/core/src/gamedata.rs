@@ -360,6 +360,7 @@ mod tests {
             copy_to: None,
             present: vec![],
             known: vec![],
+            optional: false,
         }
     }
 

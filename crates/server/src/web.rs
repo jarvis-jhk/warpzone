@@ -30,7 +30,8 @@ pub fn esc(s: &str) -> String {
     o
 }
 
-const PLATFORMS: &[(&str, &str)] = &[("linux", "Linux"), ("windows", "Windows"), ("deck", "Steam Deck"), ("portmaster", "PortMaster")];
+const PLATFORMS: &[(&str, &str)] =
+    &[("appimage", "Linux AppImage"), ("linux", "Linux"), ("windows", "Windows"), ("deck", "Steam Deck"), ("portmaster", "PortMaster")];
 
 fn platform_label(p: &str) -> &str {
     PLATFORMS.iter().find(|(k, _)| *k == p).map(|(_, v)| *v).unwrap_or(p)
@@ -133,6 +134,48 @@ fn badges(g: &GameDescriptor, rooms: usize) -> String {
         let _ = write!(b, r#"<span class="badge live">{rooms} open room{}</span>"#, if rooms == 1 { "" } else { "s" });
     }
     format!(r#"<div class="badges">{b}</div>"#)
+}
+
+/// The same capability icons as the launcher: controllers, online, mods,
+/// ladder — bright when available today, dim when still coming.
+fn capability_icons(g: &GameDescriptor) -> String {
+    let c = g.capabilities();
+    let icon = |svg: &str, label: String, on: bool, tip: String| {
+        format!(
+            r#"<span class="cap{}" title="{}"><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">{svg}</svg>{}</span>"#,
+            if on { " on" } else { "" },
+            esc(&tip),
+            esc(&label)
+        )
+    };
+    let pad = r#"<rect x="2" y="6" width="16" height="8" rx="4"/><circle cx="5" cy="13" r="3"/><circle cx="15" cy="13" r="3"/><rect class="cut" x="4" y="9.3" width="4" height="1.4"/><rect class="cut" x="5.3" y="8" width="1.4" height="4"/><circle class="cut" cx="13.3" cy="8.8" r="1"/><circle class="cut" cx="15.2" cy="10.7" r="1"/>"#;
+    let globe = r#"<g fill="none" stroke-width="1.5"><circle cx="10" cy="10" r="7.5"/><ellipse cx="10" cy="10" rx="3.3" ry="7.5"/><path d="M2.5 10h15M4 6h12M4 14h12"/></g>"#;
+    let puzzle = r#"<rect x="3" y="6" width="11" height="11" rx="2"/><circle cx="8.5" cy="5" r="2.8"/><circle cx="15.5" cy="11.5" r="2.8"/>"#;
+    let trophy = r#"<path d="M5.5 3h9v5a4.5 4.5 0 0 1-9 0z"/><g fill="none" stroke-width="1.5"><circle cx="4.5" cy="6" r="2.2"/><circle cx="15.5" cy="6" r="2.2"/></g><rect x="9" y="12" width="2" height="3"/><rect x="6" y="15" width="8" height="2.5" rx="1"/>"#;
+    let mut out = String::from(r#"<div class="caps">"#);
+    if let Some(n) = c.local_players {
+        out += &icon(
+            pad,
+            n.to_string(),
+            true,
+            if n == 1 { "Single player on one screen".into() } else { format!("Up to {n} players on one screen, each with a controller") },
+        );
+    }
+    if let Some(n) = c.online_players {
+        out += &icon(
+            globe,
+            n.to_string(),
+            c.online_now,
+            if c.online_now { format!("Online with up to {n} players") } else { format!("Online play (up to {n}) is coming") },
+        );
+    }
+    if c.mods {
+        out += &icon(puzzle, String::new(), c.mods_now, if c.mods_now { "Mods from the archive".into() } else { "Mod support is coming".into() });
+    }
+    if c.ladder {
+        out += &icon(trophy, String::new(), c.ladder_now, if c.ladder_now { "Ranked ladder with seasons".into() } else { "Ranked play is coming".into() });
+    }
+    out + "</div>"
 }
 
 fn downloads(rel: Option<&ReleaseInfo>, homepage: Option<&str>) -> String {
@@ -239,7 +282,8 @@ pub async fn index(State(state): State<AppState>) -> Html<String> {
         let req = g.requires.as_ref().map(|r| format!(r#"<p class="ver">Needs: {}</p>"#, esc(r))).unwrap_or_default();
         let _ = write!(
             cards,
-            r#"<article class="card">{banner}<div class="body"><h3><a href="/games/{id}">{name}</a></h3><p class="tagline">{tag}</p>{badges}{req}{dl}</div></article>"#,
+            r#"<article class="card">{banner}<div class="body"><h3><a href="/games/{id}">{name}</a></h3><p class="tagline">{tag}</p>{caps}{badges}{req}{dl}</div></article>"#,
+            caps = capability_icons(g),
             banner = banner(&state, g),
             id = esc(&g.id),
             name = esc(&g.name),

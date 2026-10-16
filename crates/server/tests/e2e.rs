@@ -93,6 +93,10 @@ fn client(s: &Server, name: &str) -> Client {
     let id = Arc::new(Identity::generate());
     let api = Api::new(&s.url, id.clone());
     api.register(name).unwrap();
+    client_as(s, id)
+}
+
+fn client_as(s: &Server, id: Arc<Identity>) -> Client {
     let mut cfg = Config::new("demo", "1.0.0");
     cfg.server = s.url.clone();
     cfg.identity = Some(id);
@@ -265,7 +269,9 @@ fn accounts_and_privacy() {
 #[test]
 fn ladder_and_boards() {
     let s = start();
-    let mut p1 = client(&s, "LadderOne");
+    let id1 = Arc::new(Identity::generate());
+    Api::new(&s.url, id1.clone()).register("LadderOne").unwrap();
+    let mut p1 = client_as(&s, id1.clone());
     let mut p2 = client(&s, "LadderTwo");
     wait_ready(&mut p1);
     wait_ready(&mut p2);
@@ -293,6 +299,19 @@ fn ladder_and_boards() {
         _ => None,
     });
     assert_eq!(state, "rated");
+
+    // A game started later on the same account does not replay that match.
+    let mut again = client_as(&s, id1);
+    wait(&mut [&mut again], 0, 10, |e| matches!(e, Event::LoggedIn { .. }).then_some(()));
+    let t = Instant::now();
+    while t.elapsed() < Duration::from_millis(500) {
+        again.poll();
+        while let Some(e) = again.next_event() {
+            assert!(!matches!(e, Event::MatchFound { .. } | Event::MatchFinished { .. } | Event::Error { .. }), "replayed: {e:?}");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    drop(again);
     let api = p1.api();
     let info = api.match_info(&m1).unwrap();
     let winner = info.teams.iter().flatten().find(|p| p.account == a1).unwrap();

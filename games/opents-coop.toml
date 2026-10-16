@@ -5,9 +5,8 @@
 # writes SPAWN.INI on every machine. The staged game is a shared-house campaign:
 # every player commands the mission's player house. Campaign= (fork 0.7.0)
 # names the campaign by its [Battles] identifier and starts its first mission.
-# EXPERIMENTAL: the game starts a new process for each next mission or replay,
-# and the launcher ends the tunnel when the first process exits, so only the
-# first mission is playable through the launcher for now.
+# EXPERIMENTAL: the game starts a new process for each next mission or replay;
+# relaunch_linger keeps the tunnel up across that restart (launcher 0.1.2+).
 id = "opents-coop"
 name = "OpenTS Co-op"
 tagline = "Tiberian Sun, rebuilt: shared-house co-op campaigns — several players, one force."
@@ -18,6 +17,7 @@ The Warpzone launcher can stage its network games without port forwarding by tun
 homepage = "https://github.com/jarvis-jhk/opents-coop"
 accent = "#84cc16"
 tier = 0
+local_players = 1
 status = "launcher co-op campaign experimental"
 requires = "original Tiberian Sun + Firestorm data; Windows (or Wine)"
 
@@ -47,6 +47,9 @@ mounts = { map = ".", mission = "." }
 [tier0]
 transport = "udp"
 game_port = 1234
+# Between missions the port can stay silent through the score screen, the
+# briefing movies and the host's version choice (up to ConnTimeout, 9.6 min).
+relaunch_linger = 900
 args = ["-SPAWN"]
 settings = [
   { key = "campaign", label = "Campaign", options = ["GDI1", "NOD1", "GDIFS", "NODFS"], default = "GDI1" },

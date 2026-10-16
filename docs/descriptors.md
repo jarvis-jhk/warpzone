@@ -43,6 +43,7 @@ started into a network game from a file or arguments.
 | `accent` | `#rrggbb` | accent colour of cards and generated artwork |
 | `motif` | string | generated artwork style: `arena`, `blocks`, `castle`, `crypt`, `pipes`, `ruins`, `tanks`, `waves` (default) |
 | `tier` | 0–3 | integration [tier](integration.md#tiers) the game implements today; online/ranked/mod badges show only from tier 2 |
+| `local_players` | number | players on one machine with controllers — the controller icon in the library and on the website |
 | `third_party` | bool | not made by this project |
 | `status` | string | badge such as `preview`, `in development` |
 | `requires` | string | what players must bring, shown before installing |
@@ -147,6 +148,7 @@ free = [{ label = "Shareware", url = "https://..." }]
 import_args = ["--rom", "{path}"]     # hand-over A: start the game with these once
 copy_to = "~/.local/share/game/data"  # hand-over B: copy it here ({install} = install dir)
 present = ["~/.local/share/game/data/DATA"]   # already in place → don't ask
+optional = false          # true: nice to have (e.g. sound), never blocks installing
 known = [
   { label = "World, Rev A (v1.1)", size = 65536, sha1 = "…", sha256 = "…" },
   { label = "v1.0 — not supported yet", size = 65536, sha1 = "…", supported = false },
@@ -216,6 +218,12 @@ Port={{port}}
 ```
 
 File paths are relative to the game executable's directory.
+
+Games that restart themselves — one process per mission, the next one started
+by the game with the same launch files — set `relaunch_linger = 120` (seconds,
+at most 3600). The tunnel and the room then outlive the launched process: the
+session ends only once the game port has sent nothing for that long (or the
+player leaves). Without it the session ends when the process exits.
 
 ### Templates
 

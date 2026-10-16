@@ -25,6 +25,7 @@ mod web;
 use axum::Json;
 use axum::Router;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::http::HeaderMap;
 use axum::routing::{delete, get, post};
 use ed25519_dalek::SigningKey;
 use error::{ApiError, ApiResult};
@@ -99,13 +100,41 @@ async fn endpoints(State(s): State<AppState>) -> Json<Endpoints> {
     Json(Endpoints { api: s.cfg.public_url.clone(), udp: udp_public(&s.cfg) })
 }
 
-async fn games(State(s): State<AppState>) -> Json<Vec<GameDescriptor>> {
+async fn games(State(s): State<AppState>, headers: HeaderMap) -> Json<serde_json::Value> {
     s.reload_games();
-    Json(s.games.read().unwrap().by_id.values().filter(|g| !g.hidden).cloned().collect())
+    let list: Vec<GameDescriptor> = s.games.read().unwrap().by_id.values().filter(|g| !g.hidden).cloned().collect();
+    Json(for_client(&headers, serde_json::to_value(list).expect("serialisable")))
 }
 
-async fn game(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<GameDescriptor> {
-    Ok(Json(s.game(&id)?))
+async fn game(State(s): State<AppState>, Path(id): Path<String>, headers: HeaderMap) -> ApiResult<serde_json::Value> {
+    Ok(Json(for_client(&headers, serde_json::to_value(s.game(&id)?).expect("serialisable"))))
+}
+
+/// Clients up to 0.1.1 read descriptors with `deny_unknown_fields`: one field
+/// they do not know empties their whole game list. Strip the fields added
+/// since for them (they ignore what they could not use anyway).
+fn for_client(headers: &HeaderMap, mut v: serde_json::Value) -> serde_json::Value {
+    let ua = headers.get(axum::http::header::USER_AGENT).and_then(|h| h.to_str().ok()).unwrap_or("");
+    if !matches!(ua, "warpzone-core/0.1.0" | "warpzone-core/0.1.1") {
+        return v;
+    }
+    fn strip(g: &mut serde_json::Value) {
+        let Some(g) = g.as_object_mut() else { return };
+        g.remove("local_players");
+        if let Some(t) = g.get_mut("tier0").and_then(|t| t.as_object_mut()) {
+            t.remove("relaunch_linger");
+        }
+        for d in g.get_mut("data").and_then(|d| d.as_array_mut()).into_iter().flatten() {
+            if let Some(d) = d.as_object_mut() {
+                d.remove("optional");
+            }
+        }
+    }
+    match &mut v {
+        serde_json::Value::Array(list) => list.iter_mut().for_each(strip),
+        g => strip(g),
+    }
+    v
 }
 
 async fn release(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<ReleaseInfo> {
@@ -332,4 +361,21 @@ async fn main() {
         })
         .await
         .expect("server");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_clients_get_descriptors_they_can_read() {
+        let v =
+            serde_json::json!([{ "id": "g", "local_players": 4, "tier0": { "relaunch_linger": 120, "port": 1 }, "data": [{ "id": "rom", "optional": true }] }]);
+        let mut old = HeaderMap::new();
+        old.insert(axum::http::header::USER_AGENT, "warpzone-core/0.1.1".parse().unwrap());
+        assert_eq!(for_client(&old, v.clone()), serde_json::json!([{ "id": "g", "tier0": { "port": 1 }, "data": [{ "id": "rom" }] }]));
+        let mut new = HeaderMap::new();
+        new.insert(axum::http::header::USER_AGENT, "warpzone-core/0.1.2".parse().unwrap());
+        assert_eq!(for_client(&new, v.clone()), v);
+    }
 }

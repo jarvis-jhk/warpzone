@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Third-party notices</title>
+<style>body{font:14px/1.4 sans-serif;max-width:60em;margin:2em auto;padding:0 1em}pre{white-space:pre-wrap;background:#f4f4f4;padding:1em}</style>
+</head><body>
+<h1>Third-party notices</h1>
+<p>This Warpzone build contains the following Rust crates, under these licenses.</p>
+<ul>
+{{#each overview}}<li><a href="#{{id}}">{{name}}</a> ({{count}})</li>
+{{/each}}</ul>
+{{#each licenses}}
+<h2 id="{{id}}">{{name}}</h2>
+<p>Used by:</p>
+<ul>{{#each used_by}}<li>{{crate.name}} {{crate.version}}{{#if crate.repository}} — {{crate.repository}}{{/if}}</li>{{/each}}</ul>
+<pre>{{text}}</pre>
+{{/each}}
+</body></html>
