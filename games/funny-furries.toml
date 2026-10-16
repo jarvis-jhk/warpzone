@@ -1,7 +1,8 @@
 # Funny Furries — JARVIS's SDL2 rebuild of the 1999 brawler.
-# Its roadmap's M3 is rollback online play with join codes, NAT traversal and a
-# relay fallback: exactly what Warpzone provides. Until the game integrates the
-# library (tier 2+), the rooms/ladder sections below are what it will use.
+# It already has its own rollback netcode, join codes and STUN hole punching
+# (v0.3.0); it moves that transport onto Warpzone (relay fallback, rooms,
+# ranked) in its roadmap. Until then (tier 0, no [tier0]) the launcher installs
+# and starts it; rooms/ladder below are what the integration will use.
 id = "funny-furries"
 name = "Funny Furries"
 tagline = "The chaotic 1999 couch brawler, rebuilt: up to four furries, one arena, far too many weapons."
@@ -67,4 +68,13 @@ id = "ff2xmas"
 label = "Funny Furries 2 Xmas (full version)"
 description = "The original game's funnyfurries.zip or its FF2xmas.cca file. Funny Furries imports it on first start; Warpzone only finds it for you."
 files = ["funnyfurries.zip", "FF2xmas.cca"]
-import_args = ["--import", "{path}"]
+free = [{ label = "Kliktopia archive", url = "https://kliktopia.org/details/funnyfurry2xmas.html" }]
+# The game's first-start launcher takes --import-copy; a bare --import is
+# ambiguous to it (--import-copy / --import-only) and exits with an error.
+import_args = ["--import-copy", "{path}"]
+# Written only after a successful import (Linux/Deck, then Windows).
+present = ["~/.local/share/funny-furries/selected.json", "~/AppData/Local/funny-furries/selected.json"]
+known = [
+  { label = "Full version ZIP (Kliktopia)", size = 1858506, sha1 = "d6902a149e94156966a11cc9662cd03780895629", sha256 = "9b2434fa0fc7f6929f105cfed1e01ac0668bf758da43aeffc2629ba02f690a35" },
+  { label = "Full version FF2xmas.cca", size = 3083402, sha1 = "af2e9d320029b952928b6698b07c297e04e61de4", sha256 = "4f1acb689b0becab6a2364ab47bbf9e361b9a385ad9d95ae24c64f1cd34bf22b" },
+]
