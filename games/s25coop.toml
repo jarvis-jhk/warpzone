@@ -43,11 +43,14 @@ max_size_mb = 50
 [[data]]
 id = "s2-gold"
 label = "The Settlers II (Gold Edition) game files"
-description = "An installed copy with its DATA and GFX folders, or a copy of the CD. With the GOG offline installer (setup_the_settlers_2_gold_….exe) in your Downloads folder, s25coop extracts the files itself."
-files = ["DATA/IO/IO.DAT"]
+description = "An installed copy with its DATA and GFX folders, a copy of the CD, or the GOG offline installer (setup_the_settlers_2_gold_….exe) — s25coop takes the files out of it itself."
+# An installed copy (the folder holding DATA), or the GOG installer, which s25coop unpacks on Linux/Deck.
+files = ["DATA/IO/IO.DAT", "setup_the_settlers_2*.exe", "setup_die_siedler_2*.exe"]
 gog = ["Settlers 2 GOLD", "The Settlers 2 Gold Edition", "Settlers 2"]
-# Linux/Deck: s25coop.sh finds it here. Windows s25client still looks next to the exe (s25coop ROADMAP W5).
-copy_to = "~/.local/share/s25coop/S2"
-# DATA alone is a half copy; the game needs GFX too, so check a file from it.
-present = ["~/.local/share/s25coop/S2/GFX/PALETTE/PAL5.BBM"]
+# No copy_to and no import_args: the game reads WARPZONE_DATA_S2_GOLD on every start (s25coop >= 0.1.21).
+# Linux/Deck s25coop.sh imports it once into ~/.local/share/s25coop/S2 (folder, disc or GOG installer);
+# Windows s25client uses a found folder in place. A copy_to would copy a found installer file into S2/.
+# No known fingerprints: any copy with DATA and GFX works, and editions/languages differ.
+# DATA alone is a half copy; the game needs GFX too, so check a file from it (Windows: next to the exe).
+present = ["~/.local/share/s25coop/S2/GFX/PALETTE/PAL5.BBM", "{install}/s25coop/GFX/PALETTE/PAL5.BBM"]
 buy = [{ label = "GOG.com", url = "https://www.gog.com/en/game/the_settlers_2_gold_edition" }]
