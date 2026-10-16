@@ -397,7 +397,7 @@ fn net_test(server: &str, game: &str, code: Option<String>, relay: bool) {
     }
     c.force_relay(relay);
     match &code {
-        None => c.host(HostOptions { max_players: 8, visibility: Visibility::Unlisted, ..Default::default() }),
+        None => c.host(HostOptions { max_players: 2, visibility: Visibility::Unlisted, ..Default::default() }),
         Some(code) => c.join_code(code),
     }
     let mut last_ping = Instant::now();

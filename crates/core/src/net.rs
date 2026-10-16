@@ -186,6 +186,8 @@ struct Peer {
     lost: bool,
     rel: Reliable,
     rtt: Duration,
+    rtt_measured: bool,
+    last_ping: Instant,
     hello_replied: HashMap<SocketAddr, Instant>,
 }
 
@@ -349,6 +351,8 @@ impl Net {
                 lost: false,
                 rel: Reliable::new(),
                 rtt: Duration::from_millis(100),
+                rtt_measured: false,
+                last_ping: now,
                 hello_replied: HashMap::new(),
             },
         );
@@ -639,7 +643,8 @@ impl Net {
                 let rtt = now_ms().saturating_sub(t);
                 if let Some(p) = self.peers.get_mut(&id) {
                     let sample = Duration::from_millis(rtt.min(5000));
-                    p.rtt = (p.rtt * 7 + sample) / 8;
+                    p.rtt = if p.rtt_measured { (p.rtt * 7 + sample) / 8 } else { sample };
+                    p.rtt_measured = true;
                 }
             }
             K_BYE => {
@@ -746,7 +751,9 @@ impl Net {
                         relayed.push(p.hello.clone());
                     }
                 }
-                if p.crypto.is_some() && p.path.is_some() && now.duration_since(p.last_send) > KEEPALIVE {
+                // Keepalive when idle, and an RTT probe every second regardless.
+                if p.crypto.is_some() && p.path.is_some() && (now.duration_since(p.last_send) > KEEPALIVE || now.duration_since(p.last_ping) > Duration::from_secs(1)) {
+                    p.last_ping = now;
                     ping = true;
                 }
                 if p.rel.ack_due {
