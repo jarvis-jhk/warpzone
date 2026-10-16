@@ -10,6 +10,8 @@ A fork of Return To The Roots in which several players run one tribe together, l
 Warpzone adds rooms without port forwarding, and a mod archive for maps, scenarios and campaigns."""
 homepage = "https://github.com/jarvis-jhk/s25coop"
 accent = "#3b82f6"
+# Install/launch only for now: RTTR's network traffic is TCP, so tier 0's UDP tunnel does not apply.
+# join/host below are the planned tier 1/2 arguments (s25coop ROADMAP, W2/W3).
 tier = 0
 requires = "the original The Settlers II data (GOG installer or CD) — the installer extracts it"
 
@@ -44,6 +46,8 @@ label = "The Settlers II (Gold Edition) game files"
 description = "An installed copy with its DATA and GFX folders, or a copy of the CD. With the GOG offline installer (setup_the_settlers_2_gold_….exe) in your Downloads folder, s25coop extracts the files itself."
 files = ["DATA/IO/IO.DAT"]
 gog = ["Settlers 2 GOLD", "The Settlers 2 Gold Edition", "Settlers 2"]
+# Linux/Deck: s25coop.sh finds it here. Windows s25client still looks next to the exe (s25coop ROADMAP W5).
 copy_to = "~/.local/share/s25coop/S2"
-present = ["~/.local/share/s25coop/S2/DATA"]
+# DATA alone is a half copy; the game needs GFX too, so check a file from it.
+present = ["~/.local/share/s25coop/S2/GFX/PALETTE/PAL5.BBM"]
 buy = [{ label = "GOG.com", url = "https://www.gog.com/en/game/the_settlers_2_gold_edition" }]
