@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Website: every game card and game page shows the game's generated artwork.
+- Connections measure their round-trip time every second (it was only sampled while idle).
+
 ## 0.1.0
 
 First release.
