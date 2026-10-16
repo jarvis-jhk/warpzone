@@ -10,6 +10,15 @@
   the vtt 0.1.2 deploy (the repo descriptors carry local_players). Then reply
   to the furries lane. Showcase mod uploads need Jan's moderation.
 
+- 2026-10-16 (Jan's laptop): Play failed for super-mario-land-port ("cannot
+  find the Super Mario Land executable"): the descriptor had no [launch] exec
+  and the 0.4.0 tarball holds sml in a versioned folder. sml-descriptor-fixes
+  is merged into main (exec "*/sml", exact asset names, ROM `present` path).
+  vtt config/games/super-mario-land-port.toml now carries that version WITHOUT
+  local_players (server 0.1.1; old copy in /root/*.bak-20261016). Do not push
+  an older super-mario-land-port.toml to vtt or reopen that branch; the 0.1.2
+  deploy's "push games/*.toml" step must use main at or after this note.
+
 - 2026-10-16 (report t_mvb2jb4c4x3o9q, spacehog lane): PR #11 merged
   (games/spacehog.toml, art, launcher pixel scene "spacehog"); check-games,
   launcher pixel test, fmt and clippy pass; spacehog v0.1.0 prerelease has the
