@@ -66,7 +66,9 @@ jobs:
           set -eux
           V=${GITHUB_REF_NAME#v}
           mkdir -p dist
-          cargo build --release -p warpzone-capi -p warpzone-cli -p warpzone-launcher
+          # Separately: warpzone.dll and warpzone.exe share warpzone.pdb (LNK1201 race, cargo#6313).
+          cargo build --release -p warpzone-capi
+          cargo build --release -p warpzone-cli -p warpzone-launcher
           d=libwarpzone-$V-x86_64-windows-msvc; mkdir -p $d/lib $d/include
           cp crates/capi/include/warpzone.h $d/include/; cp target/release/warpzone.lib target/release/warpzone.dll target/release/warpzone.dll.lib $d/lib/ || true
           cargo rustc -q --release -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' > $d/NATIVE_LIBS.txt || true
