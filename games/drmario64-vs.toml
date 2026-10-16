@@ -1,0 +1,34 @@
+# Dr. Mario 64 VS — frame-exact remake of Dr. Mario 64's 1 vs 1 local versus mode.
+# Deterministic engine: online 1 vs 1 (tier 2, lockstep) and a ladder come after M4.
+id = "drmario64-vs"
+name = "Dr. Mario 64 VS"
+tagline = "Dr. Mario 64's 1 vs 1 versus mode, frame-exact, in crisp vector graphics up to 4K."
+description = """
+A clean reimplementation of the two-player versus mode of Dr. Mario 64: identical viruses, pills, speeds, combos and garbage, checked frame by frame against the original's logic. Normal, Flash and Time Attack for two players on one screen with two controllers, sharp at any resolution. Linux, Windows and the Steam Deck.
+
+Sound effects come from your own Dr. Mario 64 ROM; without it the game plays silently."""
+homepage = "https://github.com/jarvis-jhk/drmario64-vs"
+accent = "#e0312b"
+tier = 0
+status = "preview"
+requires = "your own Dr. Mario 64 ROM (USA) for the sound effects"
+
+motif = "blocks"
+
+[install]
+github = "jarvis-jhk/drmario64-vs"
+checksums = "SHA256SUMS"
+assets = { linux = "drmario64-vs-linux-x86_64.tar.gz", deck = "drmario64-vs-linux-x86_64.tar.gz", windows = "drmario64-vs-windows-x86_64.zip" }
+
+[launch]
+exec = { linux = "drmario64-vs/drmario64-vs.sh", deck = "drmario64-vs/drmario64-vs.sh", windows = "drmario64-vs/drmario64-vs.exe" }
+
+[[data]]
+id = "rom"
+label = "Dr. Mario 64 ROM (USA)"
+description = "Only the sound effects are read from it, once, and cached. The game is fully playable without it, just silent."
+files = ["*dr*mario*64*.z64", "*dr*mario*64*.n64", "*dr*mario*64*.v64"]
+import_args = ["--rom", "{path}"]
+known = [
+  { label = "USA (NN6E)", size = 4194304, sha1 = "a130d3622ce40e0158db2da4247101f6e92206fc", sha256 = "bb2c0dec0a8287ad256929563d0509801c2f239df883c1cf52cab05b23bd77b6" },
+]
