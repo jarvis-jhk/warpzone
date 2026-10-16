@@ -14,7 +14,13 @@ motif = "ruins"
 
 [install]
 github = "jarvis-jhk/diablo2-couch"
-assets = { linux = "*linux*x86_64*.tar.gz", deck = "*linux*x86_64*.tar.gz", windows = "*windows*.zip" }
+prerelease = true
+# CPack names, case as built: d2d-<version>-Linux-x86_64.tar.gz, d2d-<version>-Windows-AMD64.zip,
+# each with one top-level folder of the same name (verified on CI artifacts of dbf5db0).
+assets = { linux = "d2d-*-Linux-x86_64.tar.gz", deck = "d2d-*-Linux-x86_64.tar.gz", windows = "d2d-*-Windows-AMD64.zip" }
+
+[launch]
+exec = { linux = "d2d-*-Linux-x86_64/d2d", deck = "d2d-*-Linux-x86_64/d2d", windows = "d2d-*-Windows-AMD64/d2d.exe" }
 
 [[data]]
 id = "d2lod"
