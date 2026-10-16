@@ -68,10 +68,38 @@ pub struct GameDescriptor {
     /// it and hands it to the game (`docs/descriptors.md#game-data`).
     #[serde(default)]
     pub data: Vec<DataRequirement>,
+    /// "Add to Steam": name and artwork for the non-Steam shortcut.
+    #[serde(default)]
+    pub steam: Option<SteamShortcut>,
     /// Banner motif for the launcher's procedural tile when there is no
     /// `art`: `arena`, `blocks`, `castle`, `crypt`, `pipes`, `tanks`, `waves`.
     #[serde(default)]
     pub motif: Option<String>,
+}
+
+/// How the game appears in Steam when the launcher adds it as a non-Steam
+/// game. Missing images are rendered from the launcher's tile artwork.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct SteamShortcut {
+    /// Name in the Steam library (default: the game's `name`).
+    #[serde(default)]
+    pub name: Option<String>,
+    /// 600×900 portrait capsule (PNG/JPEG URL).
+    #[serde(default)]
+    pub capsule: Option<String>,
+    /// 920×430 wide capsule.
+    #[serde(default)]
+    pub wide: Option<String>,
+    /// 1920×620 hero banner.
+    #[serde(default)]
+    pub hero: Option<String>,
+    /// Transparent logo drawn over the hero.
+    #[serde(default)]
+    pub logo: Option<String>,
+    /// Square icon.
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 /// Original data a game needs and how the launcher finds and hands it over.

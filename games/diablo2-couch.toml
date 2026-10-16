@@ -10,7 +10,7 @@ tier = 0
 status = "in development"
 requires = "your own Diablo II: Lord of Destruction data"
 
-motif = "crypt"
+motif = "ruins"
 
 [install]
 github = "jarvis-jhk/diablo2-couch"
