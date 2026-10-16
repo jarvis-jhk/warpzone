@@ -28,6 +28,10 @@ pub struct Installed {
     pub platform: String,
     pub asset: String,
     pub sha256: String,
+    /// What vouched for the download: `github-digest`, `checksum-file` or
+    /// `https-only` (the release publishes no checksum).
+    #[serde(default)]
+    pub verified_by: String,
     pub installed: i64,
     #[serde(skip)]
     pub dir: PathBuf,
@@ -65,7 +69,7 @@ pub fn installed(game: &str) -> Option<Installed> {
 
 /// SHA-256 of an asset as GitHub states it: the API's `digest` field, else
 /// the release's checksum file.
-fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksums: Option<&str>) -> Result<Option<String>> {
+fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksums: Option<&str>) -> Result<Option<(String, &'static str)>> {
     for tag in [format!("v{version}"), version.to_string()] {
         let url = format!("https://api.github.com/repos/{repo}/releases/tags/{tag}");
         let Ok(bytes) = api.fetch(&url, 4 * 1024 * 1024) else { continue };
@@ -74,7 +78,7 @@ fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksums: O
         if let Some(d) = assets.iter().find(|a| a["name"] == asset).and_then(|a| a["digest"].as_str())
             && let Some(h) = d.strip_prefix("sha256:")
         {
-            return Ok(Some(h.to_string()));
+            return Ok(Some((h.to_string(), "github-digest")));
         }
         if let Some(pattern) = checksums
             && let Some(url) = assets.iter().find(|a| a["name"].as_str().is_some_and(|n| glob_match(pattern, n))).and_then(|a| a["browser_download_url"].as_str())
@@ -85,7 +89,7 @@ fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksums: O
                 if let (Some(h), Some(n)) = (parts.next(), parts.next())
                     && n.trim_start_matches('*') == asset
                 {
-                    return Ok(Some(h.to_lowercase()));
+                    return Ok(Some((h.to_lowercase(), "checksum-file")));
                 }
             }
         }
@@ -105,7 +109,7 @@ pub fn install(api: &Api, desc: &GameDescriptor, release: &ReleaseInfo, progress
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(&staging)?;
     let file = staging.join(&asset.name);
-    let sha = api.fetch_to(&asset.url, digest.as_deref(), &file, progress)?;
+    let sha = api.fetch_to(&asset.url, digest.as_ref().map(|d| d.0.as_str()), &file, progress)?;
     if digest.is_none() {
         log::warn!("{}: GitHub states no checksum for {}; installed by its HTTPS download alone", desc.id, asset.name);
     }
@@ -132,6 +136,7 @@ pub fn install(api: &Api, desc: &GameDescriptor, release: &ReleaseInfo, progress
         platform: plat.to_string(),
         asset: asset.name.clone(),
         sha256: sha,
+        verified_by: digest.map(|d| d.1).unwrap_or("https-only").to_string(),
         installed: warpzone_protocol::now(),
         dir: PathBuf::new(),
     };

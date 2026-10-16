@@ -1,4 +1,18 @@
 [package]
 name = "warpzone-cli"
+description = "wz — Warpzone command-line tool for players, mod authors, moderators and server operators"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "wz"
+path = "src/main.rs"
+
+[dependencies]
+warpzone-core.workspace = true
+warpzone-protocol.workspace = true
+serde = { workspace = true }
+serde_json.workspace = true

@@ -1646,6 +1646,12 @@ version = "0.1.0"
 [[package]]
 name = "warpzone-cli"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "warpzone-core",
+ "warpzone-protocol",
+]
 
 [[package]]
 name = "warpzone-core"
