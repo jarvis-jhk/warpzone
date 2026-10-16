@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- libwarpzone: a newly started client no longer replays the account's older
+  events — it used to receive (and with `auto_join_matches` join) matches found
+  in earlier sessions. `WZ_EVENT_MATCH_FOUND` now also carries `queue`.
+
 ## 0.1.1
 
 - Website: every game card and game page shows the game's generated artwork.

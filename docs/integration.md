@@ -246,7 +246,7 @@ Queues are declared in the descriptor (`[[ladder]]`: teams and team size).
 ```c
 wz_queue(wz, "1v1", NULL);            /* NULL ruleset = "stock" */
 /* WZ_EVENT_QUEUED       {"queued": true, "waiting": 3, ...}
-   WZ_EVENT_MATCH_FOUND  {"match_id","room","host","teams":[["Ann"],["Bob"]]}
+   WZ_EVENT_MATCH_FOUND  {"match_id","queue","room","host","teams":[["Ann"],["Bob"]]}
    (the library joins the match room automatically; play as usual) */
 wz_report_match(wz, match_id,
   "{\"placements\": [[17], [42]], \"state_hash\": \"9f2c…\"}");

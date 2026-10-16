@@ -54,7 +54,7 @@ typedef enum wz_event_type {
     WZ_EVENT_KICKED = 14,         /* json {"room","banned"} */
     WZ_EVENT_ROOM_LIST = 15,      /* json [RoomInfo, ...] */
     WZ_EVENT_QUEUED = 16,         /* json QueueStatus */
-    WZ_EVENT_MATCH_FOUND = 17,    /* json {"match_id","room","host","teams"} — joined automatically */
+    WZ_EVENT_MATCH_FOUND = 17,    /* json {"match_id","queue","room","host","teams"} — joined automatically */
     WZ_EVENT_MATCH_FINISHED = 18, /* json {"match_id","state"}: rated | disputed | abandoned */
     WZ_EVENT_MATCH_REPORTED = 19, /* json MatchInfo */
     WZ_EVENT_SCORE = 20,          /* json {"board", "result": {"best","rank","improved"}} */

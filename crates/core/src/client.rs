@@ -129,6 +129,7 @@ pub enum Event {
     Queued(QueueStatus),
     MatchFound {
         match_id: String,
+        queue: String,
         room: String,
         host: bool,
         teams: Vec<Vec<String>>,
@@ -530,11 +531,11 @@ impl Client {
                 }
                 self.events.push_back(Event::Kicked { room, banned });
             }
-            ServerEvent::MatchFound { match_id, game, room, host, teams, .. } if game == self.cfg.game => {
+            ServerEvent::MatchFound { match_id, game, queue, room, host, teams } if game == self.cfg.game => {
                 if self.cfg.auto_join_matches {
                     self.join(&room, None, None);
                 }
-                self.events.push_back(Event::MatchFound { match_id, room, host, teams });
+                self.events.push_back(Event::MatchFound { match_id, queue, room, host, teams });
             }
             ServerEvent::MatchFinished { match_id, state } => self.events.push_back(Event::MatchFinished { match_id, state }),
             _ => {}
@@ -649,11 +650,11 @@ fn spawn_service(api: Arc<Api>, cfg: Config, rx: Receiver<Cmd>, tx: Sender<Msg>,
                 match cmd {
                     Cmd::Login => match api.info().and_then(|info| api.login().map(|l| (info, l))) {
                         Ok((info, l)) => {
-                            send(Msg::Ready { info });
-                            ev(Event::LoggedIn { account: l.account.clone(), roles: l.roles.clone() });
                             if l.account.is_some() {
                                 start_events(&api, &tx, &stop, &events_started);
                             }
+                            send(Msg::Ready { info });
+                            ev(Event::LoggedIn { account: l.account.clone(), roles: l.roles.clone() });
                         }
                         Err(e) => {
                             ev(err_event("login", &e));
@@ -669,11 +670,11 @@ fn spawn_service(api: Arc<Api>, cfg: Config, rx: Receiver<Cmd>, tx: Sender<Msg>,
                                         return;
                                     }
                                     if let Ok((info, l)) = api2.info().and_then(|info| api2.login().map(|l| (info, l))) {
-                                        let _ = tx2.send(Msg::Ready { info });
-                                        let _ = tx2.send(Msg::Event(Event::LoggedIn { account: l.account.clone(), roles: l.roles }));
                                         if l.account.is_some() {
                                             start_events(&api2, &tx2, &stop2, &started);
                                         }
+                                        let _ = tx2.send(Msg::Ready { info });
+                                        let _ = tx2.send(Msg::Event(Event::LoggedIn { account: l.account.clone(), roles: l.roles }));
                                         return;
                                     }
                                 }
@@ -788,6 +789,15 @@ fn handle_join(tx: &Sender<Msg>, r: Result<JoinResponse>) {
     };
 }
 
+/// The account's event queue is shared by all its clients and keeps older events
+/// (matches found and finished before this client existed). Start at its current
+/// end, so a new client never acts on them.
+fn events_head(api: &Api) -> Option<u64> {
+    api.events(0, 0).ok().map(|r| r.next)
+}
+
+/// Called on the API thread before `LoggedIn` goes out, so the cursor is set
+/// before the game can queue or host.
 fn start_events(api: &Arc<Api>, tx: &Sender<Msg>, stop: &Arc<AtomicBool>, started: &Arc<Mutex<bool>>) {
     {
         let mut s = started.lock().unwrap();
@@ -796,17 +806,25 @@ fn start_events(api: &Arc<Api>, tx: &Sender<Msg>, stop: &Arc<AtomicBool>, starte
         }
         *s = true;
     }
+    let head = events_head(api);
     let api = api.clone();
     let tx = tx.clone();
     let stop = stop.clone();
     std::thread::Builder::new()
         .name("warpzone-events".into())
         .spawn(move || {
-            let mut after = 0u64;
+            let mut after = head;
             while !stop.load(Ordering::SeqCst) {
-                match api.events(after, 25) {
+                let Some(a) = after else {
+                    after = events_head(&api);
+                    if after.is_none() {
+                        std::thread::sleep(Duration::from_secs(3));
+                    }
+                    continue;
+                };
+                match api.events(a, 25) {
                     Ok(r) => {
-                        after = r.next;
+                        after = Some(r.next);
                         for e in r.events {
                             if tx.send(Msg::Server(e.event)).is_err() {
                                 return;
