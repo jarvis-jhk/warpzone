@@ -379,6 +379,11 @@ pub struct Heartbeat {
     /// closing it.
     #[serde(default)]
     pub closed_to_joins: Option<bool>,
+    /// Accounts the host is actually connected to (besides itself). Members
+    /// not listed are dropped from the room, so player counts stay true when a
+    /// guest crashes instead of leaving.
+    #[serde(default)]
+    pub connected: Option<Vec<i64>>,
 }
 
 /// `POST /api/v1/rooms/{id}/kick`
@@ -738,6 +743,33 @@ pub struct ReleaseInfo {
     /// URL of the checksum file, if the release has one. Clients fetch it from
     /// GitHub themselves rather than trusting this server.
     pub checksums: Option<String>,
+    /// Release notes (Markdown, as written on GitHub).
+    #[serde(default)]
+    pub notes: String,
+}
+
+/// One release in a game's changelog.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct ChangelogEntry {
+    pub version: String,
+    pub name: String,
+    pub published: String,
+    pub prerelease: bool,
+    pub page: String,
+    /// Markdown.
+    pub notes: String,
+}
+
+/// `GET /api/v1/games/{game}/updates?current=<version>` — what a game (or the
+/// launcher) shows on start: is there something newer, and what changed since
+/// the running version.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct UpdateInfo {
+    pub current: String,
+    pub update_available: bool,
+    pub latest: Option<ReleaseInfo>,
+    /// Releases newer than `current`, newest first (at most the last ten).
+    pub changes: Vec<ChangelogEntry>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
