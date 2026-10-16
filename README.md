@@ -30,7 +30,8 @@ game's own UDP traffic), tier 3 uses everything.
 ## For players
 
 Download the launcher from the [website](https://warpzone.virtualtabletop.io#launcher)
-or the [releases](https://github.com/jarvis-jhk/warpzone/releases), or just
+or the [releases](https://github.com/jarvis-jhk/warpzone/releases) — on Linux and the
+Steam Deck as a single self-updating AppImage — or just
 play a game that has Warpzone built in. There is **no password, no e-mail and
 no chat**: your device has a key, you pick a username, and rooms say who they
 are for (language, skill, casual or serious). Private games use a 6-letter code,

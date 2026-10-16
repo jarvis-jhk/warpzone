@@ -39,7 +39,7 @@ pub fn listen(tx: Sender<Vec<String>>, wake: impl Fn() + Send + 'static) {
 }
 
 fn exe() -> String {
-    std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "warpzone".into())
+    warpzone_core::install::launcher_path().map(|p| p.display().to_string()).unwrap_or_else(|_| "warpzone".into())
 }
 
 fn home() -> Option<PathBuf> {

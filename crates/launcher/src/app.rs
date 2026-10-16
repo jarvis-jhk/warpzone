@@ -269,10 +269,14 @@ impl App {
         self.jobs.run(move || {
             let current = env!("CARGO_PKG_VERSION");
             let r = api.updates("launcher", current).and_then(|u| match (u.update_available, u.latest) {
-                (true, Some(rel)) => {
-                    let bin = if cfg!(windows) { "warpzone.exe" } else { "warpzone" };
-                    install::self_update(&api, "jarvis-jhk/warpzone", &rel, bin).map(Some)
-                }
+                (true, Some(rel)) => match std::env::var_os("APPIMAGE").filter(|a| !a.is_empty()) {
+                    // Running as an AppImage: replace the AppImage file itself.
+                    Some(path) => install::self_update_appimage(&api, "jarvis-jhk/warpzone", &rel, std::path::Path::new(&path)).map(Some),
+                    None => {
+                        let bin = if cfg!(windows) { "warpzone.exe" } else { "warpzone" };
+                        install::self_update(&api, "jarvis-jhk/warpzone", &rel, bin).map(Some)
+                    }
+                },
                 _ => Ok(None),
             });
             Box::new(move |app: &mut App| match r {
@@ -714,7 +718,7 @@ impl App {
                     };
                     art_set.push((suffix, png));
                 }
-                let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+                let exe = install::launcher_path().map_err(|e| e.to_string())?;
                 let dir = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
                 steam::add(&steam::Shortcut { name: &name, exe: &exe, start_dir: &dir, launch_options: &launch, art: art_set }).map_err(|e| e.to_string())
             })();

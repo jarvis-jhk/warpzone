@@ -31,6 +31,19 @@ port recorded in `<data>/launcher.port`) and exits, so invite links and
 `<data>` is `~/.local/share/warpzone` on Linux (or `$XDG_DATA_HOME/warpzone`),
 `%APPDATA%\warpzone` on Windows; `WARPZONE_HOME` overrides it.
 
+## The launcher updating itself
+
+At start (with *Update games automatically* on) the launcher asks the server
+whether a newer launcher exists. **As an AppImage** it downloads the new
+AppImage next to the running one, verifies it against GitHub's SHA-256 digest
+and renames it over the old file; the running copy stays mounted until it
+exits, so the new version starts next time. The AppImage also carries
+update information (`gh-releases-zsync`), so AppImageUpdate or AppImageLauncher
+can update it too. **Unpacked** (`.tar.gz`, `.zip`) it replaces its own
+executable the same way. Shortcuts, autostart entries and the `warpzone://`
+handler always point at the AppImage file (`$APPIMAGE`), never at its
+temporary mount. `WARPZONE_NO_SELF_UPDATE=1` turns self-updates off.
+
 ## Installing and updating
 
 One click: the launcher downloads the release asset for this platform and

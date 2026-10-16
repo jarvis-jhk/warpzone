@@ -3,8 +3,12 @@
 ## The launcher
 
 Get it from the [website](https://warpzone.virtualtabletop.io#launcher) for
-Linux (and the Steam Deck) or Windows. Unpack it anywhere and start
-`warpzone` / `warpzone.exe`. It is optional: every game works on its own.
+Linux (and the Steam Deck) or Windows. On Linux the easiest is the
+**AppImage**: download `warpzone-launcher-…-x86_64.AppImage`, make it
+executable (`chmod +x`, or *Properties → Allow executing* in a file manager)
+and start it — one file, nothing to unpack, and it updates itself. The
+`.tar.gz` and the Windows `.zip` work the same way unpacked. The launcher is
+optional: every game works on its own.
 
 ![Library](images/launcher-library.jpg)
 

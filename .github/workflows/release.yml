@@ -55,7 +55,10 @@ jobs:
           cargo zigbuild --release --target x86_64-unknown-linux-musl -p warpzone-cli
           d=wz-$V-x86_64-linux; mkdir -p $d; cp target/x86_64-unknown-linux-musl/release/wz $d/; legal $d cli; tar -czf dist/$d.tar.gz $d; rm -rf $d
           cargo build --release -p warpzone-launcher
-          d=warpzone-launcher-$V-linux-x86_64; mkdir -p $d; cp target/release/warpzone $d/; legal $d launcher; cp packaging/linux/* $d/ 2>/dev/null || true; tar -czf dist/$d.tar.gz $d; rm -rf $d
+          d=warpzone-launcher-$V-linux-x86_64; mkdir -p $d; cp target/release/warpzone packaging/linux/warpzone.desktop $d/; legal $d launcher; tar -czf dist/$d.tar.gz $d
+          # Self-updating AppImage (plus its .zsync for AppImageUpdate), with the same legal files.
+          bash packaging/linux/build-appimage.sh target/release/warpzone $V dist $d
+          rm -rf $d
       - uses: actions/upload-artifact@v4
         with:
           name: linux

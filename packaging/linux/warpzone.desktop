@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Warpzone
+Comment=Play together, across games
+Exec=warpzone %u
+Icon=warpzone
+Terminal=false
+Categories=Game;
+MimeType=x-scheme-handler/warpzone;

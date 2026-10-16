@@ -201,8 +201,8 @@ pub struct Install {
     #[serde(default)]
     pub prerelease: bool,
     /// Platform → asset name pattern (`*` matches anything, e.g.
-    /// `s25coop-*-linux-x86_64.tar.gz`). Platforms: `linux`, `windows`,
-    /// `deck`, `portmaster`.
+    /// `s25coop-*-linux-x86_64.tar.gz`). Platforms: `linux`, `appimage`
+    /// (self-contained Linux build), `windows`, `deck`, `portmaster`.
     pub assets: BTreeMap<String, String>,
     /// Name of the checksum file in the release (`SHA256SUMS`), if any.
     #[serde(default)]
@@ -395,7 +395,7 @@ impl GameDescriptor {
         }
         if let Some(i) = &self.install {
             for p in i.assets.keys() {
-                if !matches!(p.as_str(), "linux" | "windows" | "deck" | "portmaster") {
+                if !matches!(p.as_str(), "linux" | "appimage" | "windows" | "deck" | "portmaster") {
                     return bad(format!("unknown platform {p}"));
                 }
             }

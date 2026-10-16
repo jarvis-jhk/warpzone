@@ -10,4 +10,4 @@ staff_file = "staff.toml"
 [launcher]
 github = "jarvis-jhk/warpzone"
 prerelease = true
-assets = { linux = "warpzone-launcher-*-linux-x86_64.tar.gz", deck = "warpzone-launcher-*-linux-x86_64.tar.gz", windows = "warpzone-launcher-*-windows-x86_64.zip" }
+assets = { appimage = "warpzone-launcher-*-x86_64.AppImage", linux = "warpzone-launcher-*-linux-x86_64.tar.gz", deck = "warpzone-launcher-*-linux-x86_64.tar.gz", windows = "warpzone-launcher-*-windows-x86_64.zip" }

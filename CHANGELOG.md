@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Launcher as a self-updating **AppImage** for Linux and the Steam Deck: one file that replaces itself with the newest verified release; also updatable with AppImageUpdate. Steam shortcuts, autostart and invite links point at the AppImage itself.
 - libwarpzone: a newly started client no longer replays the account's older
   events — it used to receive (and with `auto_join_matches` join) matches found
   in earlier sessions. `WZ_EVENT_MATCH_FOUND` now also carries `queue`.

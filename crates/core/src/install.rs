@@ -99,6 +99,38 @@ pub fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksum
     Ok(None)
 }
 
+/// The file the running program was started from: the AppImage itself when
+/// running from one (`$APPIMAGE`, set by the AppImage runtime), else the
+/// executable. Use it for shortcuts, autostart and URI handlers.
+pub fn launcher_path() -> std::io::Result<PathBuf> {
+    if let Some(a) = std::env::var_os("APPIMAGE").filter(|a| !a.is_empty()) {
+        return Ok(PathBuf::from(a));
+    }
+    std::env::current_exe()
+}
+
+/// Update a running AppImage in place: download the release's `appimage`
+/// asset next to it, verify it against GitHub's digest, then rename it over
+/// the old file (the running copy stays mounted until it exits). Takes effect
+/// on the next start.
+pub fn self_update_appimage(api: &Api, repo: &str, release: &ReleaseInfo, appimage: &Path) -> Result<String> {
+    let asset = release.assets.get("appimage").ok_or_else(|| Error::Other("the release has no AppImage".into()))?;
+    let digest = github_digest(api, repo, &release.version, &asset.name, Some("SHA256SUMS"))?;
+    let digest = digest.ok_or_else(|| Error::Other(format!("GitHub states no checksum for {}; not updating", asset.name)))?;
+    let new = appimage.with_extension("AppImage.new");
+    api.fetch_to(&asset.url, Some(&digest.0), &new, &mut |_| {})?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&new, std::fs::Permissions::from_mode(0o755))?;
+    }
+    if let Err(e) = std::fs::rename(&new, appimage) {
+        let _ = std::fs::remove_file(&new);
+        return Err(Error::Other(format!("cannot replace {}: {e}", appimage.display())));
+    }
+    Ok(release.version.clone())
+}
+
 /// Replace the running launcher (or any self-contained tool) with the asset
 /// of `release` for this platform: verified against GitHub, unpacked, and the
 /// file named `binary` swapped in. Takes effect on the next start.

@@ -7,6 +7,7 @@
 //! warpzone --background             start hidden (background mode autostart)
 //! warpzone --screenshot-dir <dir>   render every screen to PNGs and exit (tests, docs)
 //! warpzone --render-art <dir>       write every game's generated artwork as PNGs and exit
+//! warpzone --render-icon <file>     write the launcher icon (256×256 PNG) and exit
 //! ```
 //!
 //! A second start hands its arguments to the running launcher and exits.
@@ -45,6 +46,16 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if let Some(i) = args.iter().position(|a| a == "--render-art") {
         render_art(std::path::Path::new(args.get(i + 1).map(String::as_str).unwrap_or("art")));
+        return;
+    }
+    if let Some(i) = args.iter().position(|a| a == "--render-icon") {
+        // Packaging: the launcher's own icon (AppImage, .desktop files).
+        let (w, h, px) = art::render(&art::Spec { id: "warpzone", name: "Warpzone", accent: "#7c5cff", motif: "waves" }, art::Kind::Icon);
+        let out = args.get(i + 1).map(String::as_str).unwrap_or("warpzone.png");
+        if let Err(e) = art::save_png(std::path::Path::new(out), w, h, &px) {
+            eprintln!("{out}: {e}");
+            std::process::exit(1);
+        }
         return;
     }
     if args.iter().any(|a| a == "--version") {
