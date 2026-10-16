@@ -1,5 +1,14 @@
 # Notes
 
+- 2026-10-16 (report t_mvb2jb4c4x3o9q, spacehog lane): PR #11 merged
+  (games/spacehog.toml, art, launcher pixel scene "spacehog"); check-games,
+  launcher pixel test, fmt and clippy pass; spacehog v0.1.0 prerelease has the
+  three assets. Tier 0 with [mods]/[[leaderboards]] as roadmap, like
+  super-mario-land-port (badges show only from tier 2). The pixel scene ships
+  with the next launcher release (not cut yet). vtt config/games/spacehog.toml
+  is a hand-edited copy WITHOUT local_players (server 0.1.1): the 0.1.2 deploy's
+  "push games/*.toml" step restores the repo version.
+
 - 2026-10-16 (report t_mvb0neyv46ndxt, launcher test on Jan's laptop): PR #8
   (launcher-appimage) and drmario-data merged; released as 0.1.2. Review found
   that `local_players`/`optional` were always serialized and 0.1.1 clients
