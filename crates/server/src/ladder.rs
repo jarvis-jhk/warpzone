@@ -254,6 +254,7 @@ fn start_match(state: &AppState, bucket: &Bucket, n_teams: usize, players: Vec<Q
                 key: host.key.clone(),
                 candidates: host.candidates.clone(),
                 relay: None,
+                joined: Instant::now(),
             },
         });
         let id = room.id.clone();

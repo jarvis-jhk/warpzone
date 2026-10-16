@@ -28,6 +28,7 @@ pub struct Member {
     pub candidates: Vec<String>,
     /// Relay channel to the host (guests only).
     pub relay: Option<(u32, [[u8; 16]; 2])>,
+    pub joined: Instant,
 }
 
 pub struct Knock {
@@ -234,7 +235,7 @@ impl Rooms {
             srv.relay.close(ch);
         }
         let relay = srv.relay.open(room_id);
-        let m = Member { account, username, key, candidates, relay: Some(relay) };
+        let m = Member { account, username, key, candidates, relay: Some(relay), joined: Instant::now() };
         srv.events.push(&principal_account(room.host), ServerEvent::PeerJoined { room: room_id.into(), peer: Room::guest_peer(&m) });
         room.members.insert(account, m);
         room.joined_as_guest(srv, account)
@@ -369,7 +370,7 @@ pub async fn create(State(state): State<AppState>, auth: Auth, Json(req): Json<C
         lockfile: req.lockfile,
         staged: req.staged,
         ranked: false,
-        host: Member { account: acc.id, username: acc.username.clone(), key: auth.key.clone(), candidates, relay: None },
+        host: Member { account: acc.id, username: acc.username.clone(), key: auth.key.clone(), candidates, relay: None, joined: Instant::now() },
     });
     let joined = room.joined_as_host(&state);
     Ok(Json(CreatedRoom {
@@ -565,7 +566,13 @@ pub async fn heartbeat(State(state): State<AppState>, auth: Auth, Path(id): Path
         room.closed_to_joins = c;
     }
     let gone: Vec<i64> = match &req.connected {
-        Some(list) => room.members.keys().copied().filter(|a| *a != acc.id && !list.contains(a)).collect(),
+        // A guest that joined moments ago may not have reached the host yet.
+        Some(list) => room
+            .members
+            .values()
+            .filter(|m| m.account != acc.id && !list.contains(&m.account) && m.joined.elapsed() > Duration::from_secs(30))
+            .map(|m| m.account)
+            .collect(),
         None => Vec::new(),
     };
     for a in gone {

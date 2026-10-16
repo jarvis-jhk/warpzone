@@ -1,4 +1,33 @@
 [package]
 name = "warpzone-core"
+description = "Warpzone client: identity, API client, NAT traversal, encrypted peer channels, mod sync, game installer"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+warpzone-protocol.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+semver.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+rand.workspace = true
+ed25519-dalek.workspace = true
+thiserror.workspace = true
+log.workspace = true
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+socket2 = "0.6"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+tar = { version = "0.4", default-features = false }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+minisign-verify = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
