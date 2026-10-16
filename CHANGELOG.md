@@ -5,6 +5,8 @@
 - libwarpzone: a newly started client no longer replays the account's older
   events — it used to receive (and with `auto_join_matches` join) matches found
   in earlier sessions. `WZ_EVENT_MATCH_FOUND` now also carries `queue`.
+- libwarpzone: while the server is unreachable, events are delivered again —
+  the promised `WZ_EVENT_ERROR {op:login}` was held back until a login succeeded.
 
 ## 0.1.1
 

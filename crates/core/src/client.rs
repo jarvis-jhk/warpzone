@@ -556,6 +556,9 @@ impl Client {
                         self.handle_msg(h);
                     }
                 }
+                // Only room traffic needs the UDP side; plain events (the
+                // offline login error above all) go out right away.
+                Msg::Event(e) => self.events.push_back(e),
                 m if self.net.is_none() => self.pending_net.push(m),
                 m => self.handle_msg(m),
             }
@@ -836,4 +839,27 @@ fn start_events(api: &Arc<Api>, tx: &Sender<Msg>, stop: &Arc<AtomicBool>, starte
             }
         })
         .expect("spawn warpzone-events thread");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn offline_login_error_is_delivered() {
+        let mut cfg = Config::new("test", "0");
+        cfg.server = "http://127.0.0.1:9".into();
+        cfg.identity = Some(Arc::new(Identity::generate()));
+        let mut c = Client::new(cfg).unwrap();
+        let until = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < until {
+            c.poll();
+            if let Some(e) = c.next_event() {
+                assert!(matches!(e, Event::Error { ref op, .. } if op == "login"), "{e:?}");
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        panic!("no event while offline");
+    }
 }
