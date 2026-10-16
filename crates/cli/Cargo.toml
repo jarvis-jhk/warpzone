@@ -1,0 +1,4 @@
+[package]
+name = "warpzone-cli"
+version.workspace = true
+edition.workspace = true

@@ -1,0 +1,7 @@
+# Source this file to use the project's own pinned Rust toolchain:
+#     . tools/env.sh
+# Nothing is installed system-wide; everything lives in .toolchain/ (gitignored).
+WZ_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)
+export RUSTUP_HOME="$WZ_ROOT/.toolchain/rustup"
+export CARGO_HOME="$WZ_ROOT/.toolchain/cargo"
+export PATH="$CARGO_HOME/bin:$WZ_ROOT/.toolchain/zig:$PATH"

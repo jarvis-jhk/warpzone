@@ -1,0 +1,412 @@
+//! Game descriptors: one TOML file per game (`games/<id>.toml`).
+//!
+//! The descriptor is everything the server, the launcher and the website know
+//! about a game. The server does not know what a game *does* with rooms, mods
+//! or scores; the descriptor only says which features the game uses, what its
+//! mod categories are called, how to install and launch it, and which room
+//! metadata keys the browser should show. Adding a game — ours or a
+//! third-party one — means adding a descriptor; see `docs/descriptors.md`.
+
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GameDescriptor {
+    /// Stable id, also the file name (`funny-furries`).
+    pub id: String,
+    pub name: String,
+    /// One line for cards.
+    pub tagline: String,
+    /// A paragraph for the game page (plain text).
+    #[serde(default)]
+    pub description: String,
+    /// Project page (source repository).
+    #[serde(default)]
+    pub homepage: Option<String>,
+    /// Card artwork (absolute URL or a path under the site's `/static/`).
+    #[serde(default)]
+    pub art: Option<String>,
+    /// Accent colour for cards (`#rrggbb`).
+    #[serde(default = "default_accent")]
+    pub accent: String,
+    /// Integration tier the game currently implements (0–3, `docs/integration.md`).
+    #[serde(default)]
+    pub tier: u8,
+    /// `true` for games not made by this project; shown with a badge.
+    #[serde(default)]
+    pub third_party: bool,
+    /// Development status shown on the card (`preview`, `in development`, ...).
+    #[serde(default)]
+    pub status: Option<String>,
+    /// What the player must bring (original game data, ROM, ...). Shown before
+    /// installing.
+    #[serde(default)]
+    pub requires: Option<String>,
+    /// Hidden from the website and launcher (still served by id).
+    #[serde(default)]
+    pub hidden: bool,
+    #[serde(default)]
+    pub install: Option<Install>,
+    #[serde(default)]
+    pub launch: Option<Launch>,
+    #[serde(default)]
+    pub rooms: Option<Rooms>,
+    #[serde(default)]
+    pub mods: Option<Mods>,
+    #[serde(default)]
+    pub ladder: Vec<LadderQueue>,
+    #[serde(default)]
+    pub leaderboards: Vec<Leaderboard>,
+    /// Season length for this game's ladder: `monthly`, `quarterly` (default)
+    /// or `yearly`.
+    #[serde(default = "default_season")]
+    pub season: String,
+    #[serde(default)]
+    pub tier0: Option<Tier0>,
+}
+
+fn default_accent() -> String {
+    "#7c5cff".into()
+}
+
+fn default_season() -> String {
+    "quarterly".into()
+}
+
+/// Where releases come from.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Install {
+    /// `owner/repo` on GitHub.
+    pub github: String,
+    /// Offer prereleases when there is no full release yet.
+    #[serde(default)]
+    pub prerelease: bool,
+    /// Platform → asset name pattern (`*` matches anything, e.g.
+    /// `s25coop-*-linux-x86_64.tar.gz`). Platforms: `linux`, `windows`,
+    /// `deck`, `portmaster`.
+    pub assets: BTreeMap<String, String>,
+    /// Name of the checksum file in the release (`SHA256SUMS`), if any.
+    #[serde(default)]
+    pub checksums: Option<String>,
+    /// minisign public key; when set, the launcher requires `<asset>.minisig`.
+    #[serde(default)]
+    pub minisign_key: Option<String>,
+    /// How the asset is installed: `extract` (tar.gz/zip, default) or `file`.
+    #[serde(default = "default_unpack")]
+    pub unpack: String,
+}
+
+fn default_unpack() -> String {
+    "extract".into()
+}
+
+/// How the launcher starts the game. Paths are relative to the install
+/// directory; `*` in a path segment matches one directory (release archives
+/// often contain a versioned top-level folder).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct Launch {
+    /// Platform → executable.
+    #[serde(default)]
+    pub exec: BTreeMap<String, String>,
+    /// Extra arguments for a plain start.
+    #[serde(default)]
+    pub args: Vec<String>,
+    /// Arguments to join a room; `{room}` is replaced (tier ≥ 1).
+    #[serde(default)]
+    pub join: Vec<String>,
+    /// Arguments to open the game's host screen (tier ≥ 2).
+    #[serde(default)]
+    pub host: Vec<String>,
+    /// Arguments that run the game's own first-start data import, if it has one.
+    #[serde(default)]
+    pub import: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Rooms {
+    pub max_players: u32,
+    /// Presets name a room (`"Jan's 2v2"`) instead of free text.
+    #[serde(default)]
+    pub presets: Vec<Preset>,
+    /// Metadata keys the browser shows, in order.
+    #[serde(default)]
+    pub display: Vec<DisplayField>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Preset {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DisplayField {
+    pub key: String,
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Mods {
+    pub categories: Vec<Category>,
+    /// Largest archive accepted, in MiB.
+    #[serde(default = "default_mod_mb")]
+    pub max_size_mb: u32,
+    /// Whether mods can contain code (scripts, DLLs). Shown as a warning.
+    #[serde(default)]
+    pub contains_code: bool,
+    /// How the client stores a mod: `archive` (keep the file, default) or
+    /// `extract` (unpack into the version directory).
+    #[serde(default = "default_mod_install")]
+    pub install: String,
+    /// Tier-0 games: category → directory (relative to the game's data
+    /// directory) the launcher links active mods into.
+    #[serde(default)]
+    pub mounts: BTreeMap<String, String>,
+}
+
+fn default_mod_mb() -> u32 {
+    50
+}
+
+fn default_mod_install() -> String {
+    "archive".into()
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Category {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LadderQueue {
+    pub id: String,
+    pub title: String,
+    /// Number of teams per match (2 for 1v1 and 2v2, N for free-for-all).
+    pub teams: u32,
+    /// Players per team.
+    #[serde(default = "one")]
+    pub team_size: u32,
+}
+
+fn one() -> u32 {
+    1
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Leaderboard {
+    pub id: String,
+    pub title: String,
+    /// `time` (milliseconds, lower wins) or `score` (higher wins).
+    pub kind: String,
+    /// Also keep per-season boards (all-time is always kept).
+    #[serde(default)]
+    pub seasonal: bool,
+}
+
+/// Integration tier 0: the launcher runs the lobby, tunnels the game's own
+/// traffic over Warpzone and starts the game on every machine.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Tier0 {
+    /// `udp` or `tcp`.
+    pub transport: String,
+    /// The port the game itself uses on every machine.
+    pub game_port: u16,
+    /// Settings the host picks in the launcher before Start.
+    #[serde(default)]
+    pub settings: Vec<Tier0Setting>,
+    /// Files written before the game starts. Key = path relative to the game's
+    /// data directory; value = template (`docs/descriptors.md#templates`).
+    #[serde(default)]
+    pub files: BTreeMap<String, String>,
+    /// Arguments for the staged start.
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Tier0Setting {
+    pub key: String,
+    pub label: String,
+    pub options: Vec<String>,
+    #[serde(default)]
+    pub default: Option<String>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DescriptorError {
+    #[error("{0}")]
+    Invalid(String),
+}
+
+impl GameDescriptor {
+    /// Consistency checks beyond what serde enforces.
+    pub fn validate(&self) -> Result<(), DescriptorError> {
+        use crate::names::{valid_game_id, valid_slug};
+        let bad = |m: String| Err(DescriptorError::Invalid(format!("{}: {m}", self.id)));
+        if !valid_game_id(&self.id) {
+            return bad("invalid id".into());
+        }
+        if self.tier > 3 {
+            return bad("tier must be 0..=3".into());
+        }
+        if !matches!(self.season.as_str(), "monthly" | "quarterly" | "yearly") {
+            return bad(format!("unknown season length {}", self.season));
+        }
+        if let Some(i) = &self.install {
+            for p in i.assets.keys() {
+                if !matches!(p.as_str(), "linux" | "windows" | "deck" | "portmaster") {
+                    return bad(format!("unknown platform {p}"));
+                }
+            }
+            if !i.github.contains('/') {
+                return bad("install.github must be owner/repo".into());
+            }
+        }
+        if let Some(r) = &self.rooms {
+            if r.max_players < 2 || r.max_players > 64 {
+                return bad("rooms.max_players must be 2..=64".into());
+            }
+            for p in &r.presets {
+                if !valid_slug(&p.id) {
+                    return bad(format!("bad preset id {}", p.id));
+                }
+            }
+        }
+        if let Some(m) = &self.mods {
+            if m.categories.is_empty() {
+                return bad("mods needs at least one category".into());
+            }
+            for c in &m.categories {
+                if !valid_slug(&c.id) {
+                    return bad(format!("bad category id {}", c.id));
+                }
+            }
+            if !matches!(m.install.as_str(), "archive" | "extract") {
+                return bad("mods.install must be archive or extract".into());
+            }
+        }
+        for q in &self.ladder {
+            if !valid_slug(&q.id) || q.teams < 2 || q.team_size < 1 || q.teams * q.team_size > 16 {
+                return bad(format!("bad ladder queue {}", q.id));
+            }
+        }
+        for b in &self.leaderboards {
+            if !valid_slug(&b.id) || !matches!(b.kind.as_str(), "time" | "score") {
+                return bad(format!("bad leaderboard {}", b.id));
+            }
+        }
+        if let Some(t) = &self.tier0 {
+            if !matches!(t.transport.as_str(), "udp" | "tcp") {
+                return bad("tier0.transport must be udp or tcp".into());
+            }
+        }
+        Ok(())
+    }
+
+    /// Features this game uses, for badges and `ServerInfo`-style listings.
+    pub fn features(&self) -> Vec<&'static str> {
+        let mut f = Vec::new();
+        if self.rooms.is_some() {
+            f.push("online");
+        }
+        if !self.ladder.is_empty() {
+            f.push("ranked");
+        }
+        if !self.leaderboards.is_empty() {
+            f.push("leaderboards");
+        }
+        if self.mods.is_some() {
+            f.push("mods");
+        }
+        f
+    }
+
+    pub fn preset_label(&self, id: &str) -> Option<&str> {
+        self.rooms.as_ref()?.presets.iter().find(|p| p.id == id).map(|p| p.label.as_str())
+    }
+}
+
+/// Glob match with `*` only (asset patterns, executable paths).
+pub fn glob_match(pattern: &str, text: &str) -> bool {
+    let parts: Vec<&str> = pattern.split('*').collect();
+    if parts.len() == 1 {
+        return pattern == text;
+    }
+    let mut rest = text;
+    for (i, part) in parts.iter().enumerate() {
+        if i == 0 {
+            match rest.strip_prefix(part) {
+                Some(r) => rest = r,
+                None => return false,
+            }
+        } else if i == parts.len() - 1 {
+            return rest.ends_with(part);
+        } else {
+            match rest.find(part) {
+                Some(p) => rest = &rest[p + part.len()..],
+                None => return false,
+            }
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn globs() {
+        assert!(glob_match("s25coop-*-linux-x86_64.tar.gz", "s25coop-0.1.19-linux-x86_64.tar.gz"));
+        assert!(!glob_match("s25coop-*-linux-x86_64.tar.gz", "s25coop-0.1.19-windows-x64.zip"));
+        assert!(glob_match("SHA256SUMS", "SHA256SUMS"));
+        assert!(glob_match("*", "anything"));
+    }
+
+    #[test]
+    fn parses_minimal_and_full() {
+        let d: GameDescriptor = toml::from_str(
+            r#"
+            id = "demo"
+            name = "Demo"
+            tagline = "A demo"
+            tier = 3
+            [install]
+            github = "o/r"
+            assets = { linux = "demo-*-linux.tar.gz" }
+            [rooms]
+            max_players = 4
+            presets = [{ id = "ffa", label = "Free for all" }]
+            [mods]
+            categories = [{ id = "level", label = "Levels" }]
+            [[ladder]]
+            id = "1v1"
+            title = "1 vs 1"
+            teams = 2
+            [[leaderboards]]
+            id = "any"
+            title = "Any%"
+            kind = "time"
+            "#,
+        )
+        .unwrap();
+        d.validate().unwrap();
+        assert_eq!(d.features(), vec!["online", "ranked", "leaderboards", "mods"]);
+        assert_eq!(d.preset_label("ffa"), Some("Free for all"));
+    }
+}
