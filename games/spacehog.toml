@@ -1,0 +1,66 @@
+# Operation Spacehog — JARVIS's native port of the 2000 DOS freeware shoot'em up,
+# verified tick by tick against the original. Needs the freeware's original data
+# files; the game reads the folder the launcher found from WARPZONE_DATA_GAME.
+# Roadmap: lockstep netplay for 2 (later 4) players, mods as per-object overrides
+# of the original datafiles, score leaderboards.
+id = "spacehog"
+name = "Operation Spacehog"
+tagline = "The 2000 freeware shoot'em up, ported natively and verified tick by tick against the DOS original, for one or two players with gamepads."
+description = """
+A native port of Operation Spacehog 1.01 by Free Lunch Design: same logic, timing, graphics and FM music as the DOS original, with a resizable window, fullscreen and gamepads for both players. Linux, Windows and the Steam Deck.
+
+The game data is the original freeware release, free to download; the launcher finds it in your Downloads folder. Warpzone will bring online co-op, score leaderboards and mods."""
+homepage = "https://github.com/jarvis-jhk/spacehog"
+accent = "#a855f7"
+tier = 0
+local_players = 2
+status = "preview"
+requires = "the original Operation Spacehog freeware data (SPACEHOG.DAT and three more files), a free download"
+
+[install]
+github = "jarvis-jhk/spacehog"
+prerelease = true
+checksums = "SHA256SUMS"
+assets = { linux = "spacehog-linux-x86_64.tar.gz", deck = "spacehog-linux-x86_64.tar.gz", windows = "spacehog-windows-x86_64.zip" }
+
+[launch]
+exec = { linux = "spacehog/spacehog", deck = "spacehog/spacehog", windows = "spacehog/spacehog.exe" }
+
+[rooms]
+max_players = 4
+presets = [{ id = "coop", label = "co-op" }]
+display = [{ key = "level", label = "Level" }]
+
+[mods]
+contains_code = false
+max_size_mb = 16
+categories = [
+  { id = "level", label = "Levels" },
+  { id = "graphics", label = "Graphics" },
+  { id = "ship", label = "Ships" },
+  { id = "sound", label = "Sounds" },
+  { id = "music", label = "Music" },
+  { id = "campaign", label = "Campaigns" },
+]
+
+[[leaderboards]]
+id = "score-1p"
+title = "High score, one player"
+kind = "score"
+seasonal = true
+
+[[leaderboards]]
+id = "score-2p"
+title = "High score, two players"
+kind = "score"
+seasonal = true
+
+[[data]]
+id = "game"
+label = "Operation Spacehog 1.01 data (SPACEHOG.DAT, SHLEV.DAT, SHBGS.DAT, SHSND.DAT)"
+description = "The original freeware release by Free Lunch Design. Unpack its zip anywhere, for example in Downloads; the game reads the files from there."
+files = ["./SPACEHOG.DAT"]
+discs = false
+free = [{ label = "DOS Games Archive (freeware)", url = "https://www.dosgamesarchive.com/download/operation-spacehog" }]
+# No import or copy: the launcher passes the folder it found as WARPZONE_DATA_GAME
+# on every start, and the game loads the files from there.

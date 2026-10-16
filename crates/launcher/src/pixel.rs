@@ -155,6 +155,7 @@ pub fn scene(id: &str, w: i32, h: i32) -> Option<Px> {
         "diablo-splitscreen" => cathedral(&mut p, &mut r),
         "diablo2-couch" => desert_town(&mut p, &mut r),
         "drmario64-vs" => pill_bottles(&mut p, &mut r),
+        "spacehog" => space_shooter(&mut p, &mut r),
         _ => return None,
     }
     Some(p)
@@ -751,13 +752,91 @@ fn pill_bottles(p: &mut Px, r: &mut Rng) {
     }
 }
 
+// ------------------------------------------------------------ Operation Spacehog
+
+fn space_shooter(p: &mut Px, r: &mut Rng) {
+    let (w, h) = (p.w, p.h);
+    let (k, gy) = layout(p);
+    p.sky(0, h, &[[4, 4, 16], [14, 8, 34], [6, 6, 20]]);
+    // A violet nebula and a ringed planet far behind.
+    for _ in 0..4 {
+        let (cx, cy) = (r.int(w / 3, w), r.int(0, gy));
+        p.glow(cx, cy, 10 + h / 6, [110, 50, 150], 0.35);
+    }
+    let (px, py, pr) = (w * 4 / 5, gy / 4, 3 + h / 14);
+    p.disc(px, py, pr, [60, 70, 120]);
+    p.disc(px - pr / 3, py - pr / 3, pr * 2 / 3, [80, 92, 150]);
+    for x in -pr * 2..=pr * 2 {
+        let y = py + x / 4;
+        if x.abs() > pr / 2 || y > py {
+            p.set(px + x, y, [190, 170, 120]);
+        }
+    }
+    // Stars, a few streaking past.
+    for _ in 0..(w * h / 40) {
+        let (x, y) = (r.int(0, w), r.int(0, h));
+        let c = if r.chance(15) { [255, 255, 255] } else { [120, 120, 170] };
+        p.set(x, y, c);
+        if r.chance(8) {
+            for i in 1..(2 + 2 * k) {
+                p.set(x + i, y, mix(c, [6, 6, 20], i as f32 / (2.0 + 2.0 * k as f32)));
+            }
+        }
+    }
+    // Two fighters (green and orange), flying right with their engines lit.
+    let ship = ["..ddd......", "..dbbd.....", "ddbbbbbdd..", "fdbbccbbbbd", "fdbbccbbbbd", "ddbbbbbdd..", "..dbbd.....", "..ddd......"];
+    let fighters = [([70, 200, 110], w / 10, gy / 3), ([240, 150, 50], w / 6, gy * 2 / 3)];
+    for (body, sx, sy) in fighters {
+        let pal = [('d', [30, 34, 44]), ('b', body), ('c', [170, 230, 255]), ('f', [120, 160, 255])];
+        let y = sy - 4 * k;
+        p.sprite_k(sx, y, &ship, &pal, false, k);
+        p.glow(sx - k, y + 4 * k, 3 + k, [110, 150, 255], 0.9);
+        // Twin lasers.
+        let (lx, ly) = (sx + 11 * k, y + 4 * k);
+        for (i, x) in (lx..(lx + w / 4)).enumerate() {
+            if i % 9 < 5 {
+                p.set(x, ly - k, [255, 240, 140]);
+                p.set(x, ly + k - 1, [255, 240, 140]);
+            }
+        }
+    }
+    // A wave of space hogs (ears, snout, tusks) coming the other way.
+    let alien = [".pp...pp.", "ppppppppp", "pwkpppwkp", "ppnnnnnpp", "tpnknknpt", "ppnnnnnpp", ".ppp.ppp."];
+    let apal = [('p', [225, 110, 165]), ('w', [255, 255, 255]), ('k', [90, 20, 50]), ('n', [250, 175, 205]), ('t', [250, 240, 210])];
+    for i in 0..5 {
+        let ax = w / 2 + i * (w / 11) + r.int(0, 3);
+        let ay = gy / 6 + ((i as f32 * 1.3).sin() * gy as f32 / 4.0) as i32 + gy / 4;
+        p.sprite_k(ax, ay, &alien, &apal, true, k);
+    }
+    // One just hit: an explosion where the lasers meet it.
+    let (ex, ey) = (w / 2 - 2 * k, gy / 2);
+    p.glow(ex, ey, 5 + 2 * k, [255, 170, 60], 1.0);
+    p.disc(ex, ey, k + 1, [255, 250, 200]);
+    for _ in 0..10 {
+        p.set(ex + r.int(-4 * k, 4 * k), ey + r.int(-3 * k, 3 * k), [255, 200, 90]);
+    }
+    // A power-up capsule drifting by.
+    let pod = [".yyy.", "yrrry", "yrwry", "yrrry", ".yyy."];
+    p.sprite_k(w * 2 / 5, gy * 5 / 6 - 2 * k, &pod, &[('y', [250, 210, 60]), ('r', [220, 60, 50]), ('w', [255, 255, 255])], false, k);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn every_scene_fits_every_shape() {
-        for id in ["funny-furries", "super-mario-land-port", "gtetrinet-ng", "s25coop", "opents-coop", "diablo-splitscreen", "diablo2-couch", "drmario64-vs"] {
+        for id in [
+            "funny-furries",
+            "super-mario-land-port",
+            "gtetrinet-ng",
+            "s25coop",
+            "opents-coop",
+            "diablo-splitscreen",
+            "diablo2-couch",
+            "drmario64-vs",
+            "spacehog",
+        ] {
             for (w, h) in [(184, 86), (120, 180), (384, 124), (52, 52)] {
                 let p = scene(id, w, h).unwrap();
                 let (_, _, rgba) = p.upscale(2);
