@@ -48,7 +48,7 @@ pub struct GameDescriptor {
     pub hidden: bool,
     /// Players on one machine with their own controllers (couch play); shown
     /// as the controller icon. `None` = not stated.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub local_players: Option<u32>,
     #[serde(default)]
     pub install: Option<Install>,
@@ -152,7 +152,7 @@ pub struct DataRequirement {
     pub present: Vec<String>,
     /// Nice to have, not needed to play (e.g. a ROM that only adds sound): the
     /// launcher still looks for it and hands it over, but never blocks on it.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub optional: bool,
     /// Fingerprints of known-good files. When present, the launcher checks a
     /// found file before anything is downloaded: verified, unknown or wrong.
@@ -365,6 +365,10 @@ pub struct Tier0 {
     /// while the game port keeps sending. 0 = the session ends with the process.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub relaunch_linger: u32,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 fn is_zero(n: &u32) -> bool {

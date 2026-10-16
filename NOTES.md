@@ -1,5 +1,20 @@
 # Notes
 
+- 2026-10-16 (report t_mvb0neyv46ndxt, launcher test on Jan's laptop): PR #8
+  (launcher-appimage) and drmario-data merged; released as 0.1.2. Review found
+  that `local_players`/`optional` were always serialized and 0.1.1 clients
+  read /games with deny_unknown_fields (empty game list after the deploy):
+  new fields now skip when unset, and /games, /games/{id} strip
+  local_players, data.optional and tier0.relaunch_linger for the user agents
+  warpzone-core/0.1.0 and 0.1.1 — add every future descriptor field to
+  `for_client` in crates/server/src/main.rs. So `relaunch_linger` can go into
+  opents-coop.toml now that 0.1.2 is deployed. Registration limit counts only
+  created accounts; accounts table migrated to AUTOINCREMENT (sequence seeded
+  above ids in match_reports/match_ratings/reports). Worker tests belong on a
+  local server (dev/server.toml), never production: they share Jan's IP.
+  The container has no pkg-config; .toolchain/sysshim/bin/pkg-config is a
+  tiny libudev-only shim (put it on PATH to build the launcher here).
+
 - 2026-10-16 (reports t_mvayqjr13bdvuz from furries, t_mvaz3n503dowbo from
   diablo2): funny-furries is tier 2, not 3 (no mod sync, leaderboards, room
   browser or approval yet); its [mods] is commented out so no "mods" badge or

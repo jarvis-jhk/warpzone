@@ -8,7 +8,7 @@ const SCHEMA: &str = r#"
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS accounts (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT, -- never reused: old match and report rows keep pointing at the deleted account
   username TEXT NOT NULL,
   username_lc TEXT NOT NULL UNIQUE,
   created INTEGER NOT NULL
@@ -87,5 +87,83 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let c = Connection::open(path)?;
     c.busy_timeout(std::time::Duration::from_secs(5))?;
     c.execute_batch(SCHEMA)?;
+    migrate_account_ids(&c)?;
     Ok(c)
+}
+
+/// Databases from 0.1.1 and older created `accounts` without AUTOINCREMENT,
+/// so SQLite handed a deleted account's id to the next registration. Rebuild
+/// the table with it, and start the sequence above every id still mentioned
+/// anywhere (match reports and ratings have no foreign key and outlive the
+/// account).
+fn migrate_account_ids(c: &Connection) -> rusqlite::Result<()> {
+    let sql: String = c.query_row("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'accounts'", [], |r| r.get(0))?;
+    if sql.contains("AUTOINCREMENT") {
+        return Ok(());
+    }
+    c.execute_batch(
+        r#"
+PRAGMA foreign_keys = OFF;
+BEGIN;
+CREATE TABLE accounts_new (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  username_lc TEXT NOT NULL UNIQUE,
+  created INTEGER NOT NULL
+);
+INSERT INTO accounts_new (id, username, username_lc, created) SELECT id, username, username_lc, created FROM accounts;
+DROP TABLE accounts;
+ALTER TABLE accounts_new RENAME TO accounts;
+DELETE FROM sqlite_sequence WHERE name = 'accounts';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'accounts', MAX(
+  (SELECT IFNULL(MAX(id), 0) FROM accounts),
+  (SELECT IFNULL(MAX(account), 0) FROM match_reports),
+  (SELECT IFNULL(MAX(account), 0) FROM match_ratings),
+  (SELECT IFNULL(MAX(reporter), 0) FROM reports));
+COMMIT;
+PRAGMA foreign_keys = ON;
+"#,
+    )?;
+    log::info!("accounts: ids are no longer reused (AUTOINCREMENT)");
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn account_ids_are_never_reused() {
+        let dir = std::env::temp_dir().join(format!("wz-db-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("old.db");
+        let _ = std::fs::remove_file(&path);
+        // A 0.1.1 database: plain INTEGER PRIMARY KEY, account 3 deleted
+        // after a match it played.
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch(&SCHEMA.replace("PRIMARY KEY AUTOINCREMENT", "PRIMARY KEY")).unwrap();
+            c.execute_batch(
+                "INSERT INTO accounts (id, username, username_lc, created) VALUES (1, 'A', 'a', 0), (2, 'B', 'b', 0), (3, 'C', 'c', 0);
+                 INSERT INTO keys VALUES ('k1', 1, 0);
+                 INSERT INTO matches VALUES ('m', 'g', 'q', 's', 'r', 'x', '[]', 'rated', 0, 0);
+                 INSERT INTO match_ratings VALUES ('m', 4, 1000, 1010);
+                 DELETE FROM accounts WHERE id = 3;",
+            )
+            .unwrap();
+        }
+        let c = open(&path).unwrap();
+        let c2 = open(&path).unwrap(); // a second open leaves it alone
+        drop(c2);
+        c.execute("INSERT INTO accounts (username, username_lc, created) VALUES ('D', 'd', 0)", []).unwrap();
+        assert_eq!(c.last_insert_rowid(), 5);
+        c.execute("DELETE FROM accounts WHERE id = 5", []).unwrap();
+        c.execute("INSERT INTO accounts (username, username_lc, created) VALUES ('E', 'e', 0)", []).unwrap();
+        assert_eq!(c.last_insert_rowid(), 6);
+        // Foreign keys still cascade to the renamed table.
+        c.execute("DELETE FROM accounts WHERE id = 1", []).unwrap();
+        let keys: i64 = c.query_row("SELECT COUNT(*) FROM keys", [], |r| r.get(0)).unwrap();
+        assert_eq!(keys, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

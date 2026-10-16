@@ -1,7 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.1.2
 
+- Server: only registrations that created an account count towards the daily
+  per-address limit (a taken name or a failed attempt used it up).
+- Server: account ids are never reused after a deletion (`AUTOINCREMENT`;
+  existing databases are migrated on start), so old match and rating rows
+  never point at a new player.
+- Server: launchers and games up to 0.1.1 get game descriptors without the
+  fields added since, so their game list keeps working.
 - Launcher as a self-updating **AppImage** for Linux and the Steam Deck: one file that replaces itself with the newest verified release; also updatable with AppImageUpdate. Steam shortcuts, autostart and invite links point at the AppImage itself.
 - Launcher: pressing Play shows *Starting…* and *Running*, steps aside (minimizes) so the game and its first-start dialogs are in front, comes back when the game ends, and explains a start that failed right away with the last lines of the game's output (`games/<id>/last-run.log`).
 - Launcher: game files it found are handed to the game on every start as `WARPZONE_DATA_<ID>` (plus the descriptor's import arguments until the data is in place), so games use what the launcher found.

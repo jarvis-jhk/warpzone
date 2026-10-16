@@ -41,7 +41,10 @@ pub async fn register(
     }
     check_username(&state, &req.username)?;
     let ip = client_ip(&state, &headers, peer);
-    state.limiter.check(&format!("register:{ip}"), state.cfg.limits.registrations_per_ip_per_day, Duration::from_secs(86_400))?;
+    // Only accounts actually created count: a taken name or a failed attempt
+    // must not use up the address's registrations for the day.
+    let limit_key = format!("register:{ip}");
+    state.limiter.peek(&limit_key, state.cfg.limits.registrations_per_ip_per_day, Duration::from_secs(86_400))?;
     let db = state.db();
     let t = now();
     let taken: Option<i64> = db.query_row("SELECT id FROM accounts WHERE username_lc = ?1", [req.username.to_ascii_lowercase()], |r| r.get(0)).optional()?;
@@ -51,6 +54,7 @@ pub async fn register(
     db.execute("INSERT INTO accounts (username, username_lc, created) VALUES (?1, ?2, ?3)", params![req.username, req.username.to_ascii_lowercase(), t])?;
     let id = db.last_insert_rowid();
     db.execute("INSERT INTO keys (key, account, added) VALUES (?1, ?2, ?3)", params![auth.key, id, t])?;
+    state.limiter.record(&limit_key);
     log::info!("account {id} registered");
     Ok(Json(Account { id, username: req.username, created: t }))
 }
