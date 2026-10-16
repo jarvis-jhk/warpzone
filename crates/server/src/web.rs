@@ -92,14 +92,21 @@ fn page(state: &AppState, title: &str, description: &str, body: &str) -> Html<St
     ))
 }
 
-fn banner(g: &GameDescriptor) -> String {
+/// Generated tile artwork next to the descriptors (`games/art/<id>.jpg`,
+/// written by `warpzone --render-art`), if there is no `art` URL.
+fn art_url(state: &AppState, g: &GameDescriptor) -> Option<String> {
+    g.art.clone().or_else(|| state.cfg.games_dir.join("art").join(format!("{}.jpg", g.id)).is_file().then(|| format!("/art/{}.jpg", g.id)))
+}
+
+fn banner(state: &AppState, g: &GameDescriptor) -> String {
     let initials: String = g.name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect();
-    let img = g.art.as_ref().map(|a| format!(r#"<img src="{}" alt="" loading="lazy">"#, esc(a))).unwrap_or_default();
+    let art = art_url(state, g);
+    let img = art.as_ref().map(|a| format!(r#"<img src="{}" alt="">"#, esc(a))).unwrap_or_default();
     format!(
         r#"<div class="banner" style="background:linear-gradient(135deg,{acc}cc,{acc}22 70%),#151526">{img}<span class="initials">{ini}</span></div>"#,
         acc = esc(&g.accent),
         img = img,
-        ini = if g.art.is_some() { String::new() } else { esc(&initials) }
+        ini = if art.is_some() { String::new() } else { esc(&initials) }
     )
 }
 
@@ -233,7 +240,7 @@ pub async fn index(State(state): State<AppState>) -> Html<String> {
         let _ = write!(
             cards,
             r#"<article class="card">{banner}<div class="body"><h3><a href="/games/{id}">{name}</a></h3><p class="tagline">{tag}</p>{badges}{req}{dl}</div></article>"#,
-            banner = banner(g),
+            banner = banner(&state, g),
             id = esc(&g.id),
             name = esc(&g.name),
             tag = esc(&g.tagline),
@@ -300,13 +307,17 @@ pub async fn game_page(State(state): State<AppState>, Path(id): Path<String>) ->
     let Ok(g) = state.game(&id) else { return not_found(&state) };
     let rooms = list_public(&state, &RoomQuery { game: Some(id.clone()), ..Default::default() });
     let rel = state.releases.read().unwrap().get(&id).cloned();
+    let hero = art_url(&state, &g)
+        .map(|a| format!(r#"<img src="{}" alt="" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px;margin-top:20px">"#, esc(&a)))
+        .unwrap_or_default();
     let mut body = format!(
-        r#"<div class="game-head"><div><h1>{name}</h1><p class="lead muted" style="margin:0">{tag}</p>{badges}</div>
+        r#"{hero}<div class="game-head"><div><h1>{name}</h1><p class="lead muted" style="margin:0">{tag}</p>{badges}</div>
 <div>{home}</div></div>"#,
         name = esc(&g.name),
         tag = esc(&g.tagline),
         badges = badges(&g, rooms.len()),
         home = g.homepage.as_ref().map(|h| format!(r#"<a class="btn" href="{}">Project page</a>"#, esc(h))).unwrap_or_default(),
+        hero = hero,
     );
     let _ = write!(body, r#"<section><div class="panel">{}</div>"#, downloads(rel.as_ref(), g.homepage.as_deref()));
     if !g.description.is_empty() {
@@ -616,6 +627,16 @@ pub fn not_found(state: &AppState) -> Response {
 
 pub async fn fallback(State(state): State<AppState>) -> Response {
     not_found(&state)
+}
+
+/// `/art/<id>.jpg` from `games_dir/art/`.
+pub async fn art_file(State(state): State<AppState>, Path(file): Path<String>) -> Result<Response, ApiError> {
+    let ok = file.ends_with(".jpg") && file.len() < 64 && file.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.') && !file.contains("..");
+    if !ok {
+        return Err(ApiError::not_found("no such file"));
+    }
+    let bytes = tokio::fs::read(state.cfg.games_dir.join("art").join(&file)).await.map_err(|_| ApiError::not_found("no such file"))?;
+    Ok(([(header::CONTENT_TYPE, "image/jpeg"), (header::CACHE_CONTROL, "public, max-age=86400")], bytes).into_response())
 }
 
 pub async fn static_file(Path(file): Path<String>) -> Result<Response, ApiError> {
