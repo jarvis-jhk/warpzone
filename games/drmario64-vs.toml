@@ -28,8 +28,13 @@ exec = { linux = "drmario64-vs/drmario64-vs.sh", deck = "drmario64-vs/drmario64-
 [[data]]
 id = "rom"
 label = "Dr. Mario 64 (USA) ROM — optional, for sound effects"
-description = "Your own cartridge dump (.z64). The game renders its sound effects from it once and keeps only that cache; without it the game is silent."
-files = ["*dr*mario*64*.z64", "*drmario*.z64"]
+description = "Your own cartridge dump (.z64, .v64 or .n64). The game renders its sound effects from it once and keeps only that cache; without it the game is silent."
+files = ["*dr*mario*64*.z64", "*dr*mario*64*.v64", "*dr*mario*64*.n64", "*drmario*.z64"]
 discs = false
 optional = true
 import_args = ["--rom", "{path}"]
+# The game also reads WARPZONE_DATA_ROM, accepts .z64/.v64/.n64 and keeps a cache after
+# the first import, so a --rom on every start costs nothing; no `present` needed.
+known = [
+  { label = "Dr. Mario 64 (USA), .z64", size = 4194304, sha1 = "a130d3622ce40e0158db2da4247101f6e92206fc", sha256 = "bb2c0dec0a8287ad256929563d0509801c2f239df883c1cf52cab05b23bd77b6" },
+]
