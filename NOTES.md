@@ -1,5 +1,14 @@
 # Notes
 
+- 2026-10-16 (report t_mvbbejaqh3z4a, from the opents lane): PR #7 merged
+  (c967f5c, CI green on cee7e98) and merged into local main. games/opents-coop.toml
+  is now the co-op campaign template with `local_players = 1` and
+  `[tier0] relaunch_linger = 900` (score screen + briefing + host version
+  choice can keep the port silent ~10 min; supersedes the 120 s suggested
+  below). Both fields need the 0.1.2 server: push it to vtt config/games/
+  only as part of the pending 0.1.2 deploy (see the PR #8 entry), never
+  before. After that deploy: two-network test of OpenTS Co-op with Jan.
+
 - 2026-10-16 (request t_mvb4dzeyi7k6y): server fault reporting. New optional
   `[fault_reports] url/lane` in server.toml: every log::error from the server's
   own code (ApiError::internal = every 500, ladder start/finalize, udp, broken
