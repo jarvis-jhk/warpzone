@@ -1,0 +1,61 @@
+# Funny Furries — JARVIS's SDL2 rebuild of the 1999 brawler.
+# Its roadmap's M3 is rollback online play with join codes, NAT traversal and a
+# relay fallback: exactly what Warpzone provides. Until the game integrates the
+# library (tier 2+), the rooms/ladder sections below are what it will use.
+id = "funny-furries"
+name = "Funny Furries"
+tagline = "The chaotic 1999 couch brawler, rebuilt: up to four furries, one arena, far too many weapons."
+description = """
+A faithful SDL2 reimplementation of Funny Furries 2 Xmas, the Click & Create brawler by Bastiaan de Jong. Up to four players share one screen with controllers on Linux, Windows and the Steam Deck.
+
+Rollback online play, ranked 1 vs 1, free-for-all and 2 vs 2 come through Warpzone."""
+homepage = "https://github.com/jarvis-jhk/funny-furries"
+accent = "#f59e0b"
+tier = 0
+status = "preview"
+requires = "your own copy of Funny Furries 2 Xmas — the game imports it at first start"
+
+[install]
+github = "jarvis-jhk/funny-furries"
+prerelease = true
+checksums = "SHA256SUMS"
+assets = { linux = "funny-furries-linux-deck-x86_64.tar.gz", deck = "funny-furries-linux-deck-x86_64.tar.gz", windows = "funny-furries-windows-x86_64.zip" }
+
+[launch]
+exec = { linux = "funny-furries/play.sh", deck = "funny-furries/play.sh", windows = "funny-furries/Play-Funny-Furries.exe" }
+join = ["--warpzone-join", "{room}"]
+host = ["--warpzone-host"]
+
+[rooms]
+max_players = 4
+presets = [
+  { id = "1v1", label = "1 vs 1" },
+  { id = "ffa", label = "free-for-all" },
+  { id = "2v2", label = "2 vs 2" },
+]
+display = [{ key = "arena", label = "Arena" }, { key = "mode", label = "Mode" }]
+
+[mods]
+categories = [
+  { id = "arena", label = "Arenas" },
+  { id = "skin", label = "Skins" },
+  { id = "weapon", label = "Weapons" },
+  { id = "sound", label = "Sounds" },
+]
+max_size_mb = 50
+
+[[ladder]]
+id = "1v1"
+title = "1 vs 1"
+teams = 2
+
+[[ladder]]
+id = "ffa"
+title = "Free-for-all (4)"
+teams = 4
+
+[[ladder]]
+id = "2v2"
+title = "2 vs 2"
+teams = 2
+team_size = 2

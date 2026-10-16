@@ -1,0 +1,34 @@
+# GTetrinet NG — continuation of the classic Tetrinet client. Its own TCP
+# protocol and embedded server; Warpzone adds the room list and connectivity.
+id = "gtetrinet-ng"
+name = "GTetrinet NG"
+tagline = "Classic Tetrinet, revived: specials, teams and up to eight controllers on one Steam Deck."
+description = """
+The continuation of GTetrinet, the classic Tetrinet client: a portable C11 core with SDL2, an embedded offline server, eight local controller seats, teams and specials. Linux, Windows and the Steam Deck."""
+homepage = "https://github.com/jarvis-jhk/gtetrinet-ng"
+accent = "#22c55e"
+tier = 0
+
+[install]
+github = "jarvis-jhk/gtetrinet-ng"
+checksums = "SHA256SUMS"
+assets = { linux = "gtetrinet-ng-linux-x86_64.tar.gz", deck = "gtetrinet-ng-linux-x86_64.tar.gz", windows = "gtetrinet-ng-windows-x86_64.zip" }
+
+[launch]
+exec = { linux = "gtetrinet-ng/gtetrinet-ng.sh", deck = "gtetrinet-ng/gtetrinet-ng.sh", windows = "gtetrinet-ng/gtetrinet-ng.exe" }
+join = ["--warpzone-join", "{room}"]
+host = ["--warpzone-host"]
+
+[rooms]
+max_players = 6
+presets = [{ id = "ffa", label = "free-for-all" }, { id = "teams", label = "team game" }]
+display = [{ key = "rules", label = "Rules" }]
+
+[mods]
+categories = [{ id = "theme", label = "Themes" }]
+max_size_mb = 20
+
+[[ladder]]
+id = "ffa"
+title = "Free-for-all (up to 6)"
+teams = 6

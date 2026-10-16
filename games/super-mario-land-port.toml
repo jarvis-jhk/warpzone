@@ -1,0 +1,61 @@
+# Super Mario Land — JARVIS's cycle-exact C port. Loads everything from the
+# player's own ROM. Roadmap: mod ecosystem with typed packages and transitive
+# dependencies, speedrun timer, and shared-screen co-op for up to 16 players,
+# each playing their own game.
+id = "super-mario-land-port"
+name = "Super Mario Land"
+tagline = "A cycle-exact port of the Game Boy classic, with widescreen, speedrun tools and mods — up to 16 players side by side."
+description = """
+A native C port of Super Mario Land that loads every graphic, level and sound from your own ROM and plays back every tool-assisted speedrun frame-perfectly. Releases for Linux, Windows, the Steam Deck and PortMaster handhelds.
+
+Warpzone brings its mod archive (levels, worlds, tilesets, skins, Lua behaviours), leaderboards for speedruns, and a shared-screen mode where up to 16 players each play their own game and watch everyone else's."""
+homepage = "https://github.com/jarvis-jhk/super-mario-land-port"
+accent = "#ef4444"
+tier = 0
+status = "in development"
+requires = "your own Super Mario Land ROM — none is included or downloadable here"
+
+[install]
+github = "jarvis-jhk/super-mario-land-port"
+prerelease = true
+checksums = "SHA256SUMS"
+assets = { linux = "*linux-x86_64*.tar.gz", deck = "*linux-x86_64*.tar.gz", windows = "*windows-x86_64*.zip", portmaster = "*portmaster*.zip" }
+
+[launch]
+join = ["--warpzone-join", "{room}"]
+host = ["--warpzone-host"]
+
+[rooms]
+max_players = 16
+presets = [
+  { id = "together", label = "shared screens" },
+  { id = "race", label = "race" },
+]
+display = [{ key = "world", label = "World" }, { key = "mode", label = "Mode" }]
+
+[mods]
+contains_code = true
+max_size_mb = 64
+categories = [
+  { id = "skin", label = "Skins" },
+  { id = "player", label = "Players" },
+  { id = "enemy", label = "Enemies" },
+  { id = "tileset", label = "Tilesets" },
+  { id = "level", label = "Levels" },
+  { id = "world", label = "Worlds" },
+  { id = "worldset", label = "Campaigns" },
+  { id = "music", label = "Music" },
+  { id = "theme", label = "Themes" },
+  { id = "behavior", label = "Lua behaviours" },
+]
+
+[[leaderboards]]
+id = "any"
+title = "Full game, any%"
+kind = "time"
+seasonal = true
+
+[[leaderboards]]
+id = "1-1"
+title = "World 1-1"
+kind = "time"

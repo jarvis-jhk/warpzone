@@ -1,0 +1,13 @@
+# Local development config: `cargo run -p warpzone-server -- --config dev/server.toml`
+name = "Warpzone (dev)"
+public_url = "http://127.0.0.1:2998"
+http_listen = "127.0.0.1:2998"
+udp_listen = "[::]:3478"
+data_dir = "../build/dev-data"
+games_dir = "../games"
+staff_file = "staff.toml"
+
+[launcher]
+github = "jarvis-jhk/warpzone"
+prerelease = true
+assets = { linux = "warpzone-launcher-*-linux-x86_64.tar.gz", deck = "warpzone-launcher-*-linux-x86_64.tar.gz", windows = "warpzone-launcher-*-windows-x86_64.zip" }

@@ -1,0 +1,37 @@
+# The Settlers II: Coop — a Return To The Roots fork where many players share
+# one tribe. Keeps RTTR's upstream lobby; Warpzone rooms appear next to it in
+# the game's own browser once integrated.
+id = "s25coop"
+name = "The Settlers II: Coop"
+tagline = "The Settlers II campaigns together: many players, one tribe — on one TV or over the internet."
+description = """
+A fork of Return To The Roots in which several players run one tribe together, locally with controllers or online, with a controller-friendly front end and a Steam Deck installer. Linux and Windows.
+
+Warpzone adds rooms without port forwarding, and a mod archive for maps, scenarios and campaigns."""
+homepage = "https://github.com/jarvis-jhk/s25coop"
+accent = "#3b82f6"
+tier = 0
+requires = "the original The Settlers II data (GOG installer or CD) — the installer extracts it"
+
+[install]
+github = "jarvis-jhk/s25coop"
+assets = { linux = "s25coop-*-linux-x86_64.tar.gz", deck = "s25coop-*-linux-x86_64.tar.gz", windows = "s25coop-*-windows-x64.zip" }
+
+[launch]
+exec = { linux = "s25coop/s25coop.sh", deck = "s25coop/s25coop.sh", windows = "s25coop/s25client.exe" }
+join = ["--warpzone-join", "{room}"]
+host = ["--warpzone-host"]
+
+[rooms]
+max_players = 16
+presets = [{ id = "campaign", label = "campaign" }, { id = "map", label = "free game" }]
+display = [{ key = "map", label = "Map" }, { key = "chapter", label = "Chapter" }]
+
+[mods]
+categories = [
+  { id = "map", label = "Maps" },
+  { id = "scenario", label = "Scenarios" },
+  { id = "campaign", label = "Campaigns" },
+]
+contains_code = true
+max_size_mb = 50

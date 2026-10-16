@@ -1,0 +1,15 @@
+# Diablo 2 Couch — couch co-op for Diablo II on D2Decomp.
+id = "diablo2-couch"
+name = "Diablo 2 Couch"
+tagline = "Diablo II: Lord of Destruction for up to four players on one screen — one sofa, one hero each."
+description = """
+Couch co-op for Diablo II, built on D2Decomp, an open reimplementation of the engine: one shared camera, one controller and one hero per player, and personal inventories that never pause the game. Linux, Windows and the Steam Deck."""
+homepage = "https://github.com/jarvis-jhk/diablo2-couch"
+accent = "#a16207"
+tier = 0
+status = "in development"
+requires = "your own Diablo II: Lord of Destruction data"
+
+[install]
+github = "jarvis-jhk/diablo2-couch"
+assets = { linux = "*linux*x86_64*.tar.gz", deck = "*linux*x86_64*.tar.gz", windows = "*windows*.zip" }

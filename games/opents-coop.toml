@@ -1,0 +1,69 @@
+# OpenTS co-op — rebuild of the Tiberian Sun engine with shared-house
+# campaigns. Its network game uses UDP between machines and can be started from
+# a SPAWN.INI, so the launcher can host it without any change to the game
+# (integration tier 0): it tunnels each player's UDP port over Warpzone and
+# writes SPAWN.INI on every machine. EXPERIMENTAL: the template below is a
+# skirmish-style network game; the opents-coop lane verifies and extends it.
+id = "opents-coop"
+name = "OpenTS Co-op"
+tagline = "Tiberian Sun, rebuilt: shared-house co-op campaigns — several players, one force."
+description = """
+A fork of OpenTS, the open rebuild of the Command & Conquer: Tiberian Sun engine, with selectable campaign mission variants and a player-by-force control matrix: several players can share a force, and one player can control several.
+
+The Warpzone launcher can stage its network games without port forwarding by tunnelling the game's UDP traffic."""
+homepage = "https://github.com/jarvis-jhk/opents-coop"
+accent = "#84cc16"
+tier = 0
+status = "launcher lobby experimental"
+requires = "original Tiberian Sun + Firestorm data; Windows (or Wine)"
+
+[install]
+github = "jarvis-jhk/opents-coop"
+prerelease = true
+assets = { windows = "OpenTS-*-x64.zip" }
+
+[launch]
+exec = { windows = "Game.exe" }
+
+[rooms]
+max_players = 8
+presets = [{ id = "skirmish", label = "network game" }]
+display = [{ key = "map", label = "Map" }]
+
+[mods]
+categories = [{ id = "map", label = "Maps" }, { id = "mission", label = "Mission variants" }]
+max_size_mb = 50
+mounts = { map = "maps", mission = "missions" }
+
+[tier0]
+transport = "udp"
+game_port = 1234
+args = ["-SPAWN"]
+settings = [
+  { key = "credits", label = "Starting credits", options = ["5000", "10000", "20000"], default = "10000" },
+  { key = "speed", label = "Game speed (0 fastest)", options = ["0", "1", "2", "3", "4"], default = "2" },
+  { key = "scenario", label = "Scenario file", options = ["spawnmap.ini"], default = "spawnmap.ini" },
+]
+
+[tier0.files]
+"SPAWN.INI" = """
+[Settings]
+Name={{self.name}}
+Side=0
+Color={{self.seat}}
+Port={{game_port}}
+Host={{self.host_yesno}}
+Scenario={{setting.scenario}}
+GameSpeed={{setting.speed}}
+Credits={{setting.credits}}
+Seed={{seed}}
+ConnTimeout=3600
+{{#each others}}
+[Other{{n}}]
+Name={{name}}
+Side=0
+Color={{seat}}
+Ip=127.0.0.1
+Port={{port}}
+{{/each}}
+"""

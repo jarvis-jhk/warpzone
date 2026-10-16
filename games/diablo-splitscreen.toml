@@ -1,0 +1,15 @@
+# Diablo Splitscreen — DevilutionX fork for 1–4 controllers on one screen.
+id = "diablo-splitscreen"
+name = "Diablo Splitscreen"
+tagline = "Diablo for up to four players on one screen, each with their own controller and inventory."
+description = """
+A DevilutionX fork targeting one to four controllers on a shared screen: independent inventories, spells and merchants that never pause anyone else. Linux, Windows and the Steam Deck."""
+homepage = "https://github.com/jarvis-jhk/diablo-splitscreen"
+accent = "#b91c1c"
+tier = 0
+status = "in development"
+requires = "your own Diablo data file (DIABDAT.MPQ)"
+
+[install]
+github = "jarvis-jhk/diablo-splitscreen"
+assets = { linux = "*linux*x86_64*.tar.gz", deck = "*linux*x86_64*.tar.gz", windows = "*windows*.zip" }

@@ -112,11 +112,16 @@ fn badges(g: &GameDescriptor, rooms: usize) -> String {
     if let Some(s) = &g.status {
         let _ = write!(b, r#"<span class="badge warn">{}</span>"#, esc(s));
     }
-    for f in g.features() {
-        let _ = write!(b, r#"<span class="badge on">{f}</span>"#);
-    }
-    if g.tier0.is_some() {
-        b.push_str(r#"<span class="badge">launcher lobby</span>"#);
+    // Only what a game can do today: tier 2+ games use rooms, ladder, boards
+    // and mods themselves; tier 0 games only through the launcher.
+    if g.tier >= 2 {
+        for f in g.features() {
+            let _ = write!(b, r#"<span class="badge on">{f}</span>"#);
+        }
+    } else if g.tier0.is_some() {
+        b.push_str(r#"<span class="badge on">launcher lobby</span>"#);
+    } else {
+        b.push_str(r#"<span class="badge">Warpzone support coming</span>"#);
     }
     if g.third_party {
         b.push_str(r#"<span class="badge">third-party</span>"#);
