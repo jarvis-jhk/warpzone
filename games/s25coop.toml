@@ -11,6 +11,7 @@ Warpzone adds rooms without port forwarding, and a mod archive for maps, scenari
 homepage = "https://github.com/jarvis-jhk/s25coop"
 accent = "#3b82f6"
 tier = 0
+local_players = 4
 requires = "the original The Settlers II data (GOG installer or CD) — the installer extracts it"
 
 motif = "castle"

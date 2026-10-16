@@ -14,6 +14,7 @@ The Warpzone launcher can stage its network games without port forwarding by tun
 homepage = "https://github.com/jarvis-jhk/opents-coop"
 accent = "#84cc16"
 tier = 0
+local_players = 1
 status = "launcher lobby experimental"
 requires = "original Tiberian Sun + Firestorm data; Windows (or Wine)"
 

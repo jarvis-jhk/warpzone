@@ -7,6 +7,7 @@ Couch co-op for Diablo II, built on D2Decomp, an open reimplementation of the en
 homepage = "https://github.com/jarvis-jhk/diablo2-couch"
 accent = "#a16207"
 tier = 0
+local_players = 4
 status = "in development"
 requires = "your own Diablo II: Lord of Destruction data"
 

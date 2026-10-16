@@ -17,6 +17,7 @@ mod art;
 mod jobs;
 mod lobby;
 mod pad;
+mod pixel;
 mod settings;
 mod steam;
 mod system;

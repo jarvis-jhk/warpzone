@@ -46,6 +46,10 @@ pub struct GameDescriptor {
     /// Hidden from the website and launcher (still served by id).
     #[serde(default)]
     pub hidden: bool,
+    /// Players on one machine with their own controllers (couch play); shown
+    /// as the controller icon. `None` = not stated.
+    #[serde(default)]
+    pub local_players: Option<u32>,
     #[serde(default)]
     pub install: Option<Install>,
     #[serde(default)]
@@ -146,6 +150,10 @@ pub struct DataRequirement {
     /// place, so the launcher does not ask again.
     #[serde(default)]
     pub present: Vec<String>,
+    /// Nice to have, not needed to play (e.g. a ROM that only adds sound): the
+    /// launcher still looks for it and hands it over, but never blocks on it.
+    #[serde(default)]
+    pub optional: bool,
     /// Fingerprints of known-good files. When present, the launcher checks a
     /// found file before anything is downloaded: verified, unknown or wrong.
     #[serde(default)]
@@ -390,6 +398,9 @@ impl GameDescriptor {
         if self.tier > 3 {
             return bad("tier must be 0..=3".into());
         }
+        if self.local_players.is_some_and(|n| n == 0 || n > 64) {
+            return bad("local_players must be 1..=64".into());
+        }
         if !matches!(self.season.as_str(), "monthly" | "quarterly" | "yearly") {
             return bad(format!("unknown season length {}", self.season));
         }
@@ -477,9 +488,39 @@ impl GameDescriptor {
         f
     }
 
+    /// What the game can do today, for icons: (players online, mods usable,
+    /// ranked usable). Online needs tier 2+ (or a launcher lobby), mods tier 3
+    /// (or tier-0 mounts), ranked tier 2+. Declared-but-not-yet-supported
+    /// features come back as `planned`.
+    pub fn capabilities(&self) -> Capabilities {
+        let online_now = self.tier >= 2 || self.tier0.is_some();
+        let mods_now = self.tier >= 3 || (self.tier0.is_some() && self.mods.as_ref().is_some_and(|m| !m.mounts.is_empty()));
+        Capabilities {
+            local_players: self.local_players,
+            online_players: self.rooms.as_ref().map(|r| r.max_players),
+            online_now,
+            mods: self.mods.is_some(),
+            mods_now,
+            ladder: !self.ladder.is_empty(),
+            ladder_now: self.tier >= 2,
+        }
+    }
+
     pub fn preset_label(&self, id: &str) -> Option<&str> {
         self.rooms.as_ref()?.presets.iter().find(|p| p.id == id).map(|p| p.label.as_str())
     }
+}
+
+/// See [`GameDescriptor::capabilities`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Capabilities {
+    pub local_players: Option<u32>,
+    pub online_players: Option<u32>,
+    pub online_now: bool,
+    pub mods: bool,
+    pub mods_now: bool,
+    pub ladder: bool,
+    pub ladder_now: bool,
 }
 
 /// Glob match with `*` only (asset patterns, executable paths).

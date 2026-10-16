@@ -7,6 +7,7 @@ A DevilutionX fork targeting one to four controllers on a shared screen: indepen
 homepage = "https://github.com/jarvis-jhk/diablo-splitscreen"
 accent = "#b91c1c"
 tier = 0
+local_players = 4
 status = "in development"
 requires = "your own Diablo data file (DIABDAT.MPQ)"
 
@@ -14,7 +15,12 @@ motif = "crypt"
 
 [install]
 github = "jarvis-jhk/diablo-splitscreen"
+prerelease = true
+checksums = "SHA256SUMS"
 assets = { linux = "*linux*x86_64*.tar.gz", deck = "*linux*x86_64*.tar.gz", windows = "*windows*.zip" }
+
+[launch]
+exec = { linux = "diablo-splitscreen/diablo-splitscreen.sh", deck = "diablo-splitscreen/diablo-splitscreen.sh", windows = "diablo-splitscreen/devilutionx.exe" }
 
 [[data]]
 id = "diabdat"

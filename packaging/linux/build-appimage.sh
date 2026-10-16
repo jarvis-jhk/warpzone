@@ -10,11 +10,15 @@
 set -euo pipefail
 bin=$1 version=$2 out=$3 legal=${4:-}
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-tool="$root/.toolchain/appimagetool-x86_64.AppImage"
-if [ ! -x "$tool" ]; then
+# Extracted once (no FUSE needed, and the tool then writes its .zsync next to
+# the AppImage instead of into a temporary directory).
+tooldir="$root/.toolchain/appimagetool"
+if [ ! -x "$tooldir/usr/bin/appimagetool" ]; then
   mkdir -p "$root/.toolchain"
-  curl -sSfL -o "$tool" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-  chmod +x "$tool"
+  curl -sSfL -o "$root/.toolchain/appimagetool-x86_64.AppImage" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+  chmod +x "$root/.toolchain/appimagetool-x86_64.AppImage"
+  rm -rf "$tooldir"
+  (cd "$root/.toolchain" && ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null && mv squashfs-root appimagetool)
 fi
 dir=$(mktemp -d -p "${TMPDIR:-/tmp}")
 trap 'rm -rf "$dir"' EXIT
@@ -32,8 +36,13 @@ if [ -n "$legal" ]; then
   find "$legal" -maxdepth 1 -type f \( -name 'LICENSE*' -o -name 'THIRD-PARTY*' \) -exec cp {} "$app/usr/share/doc/warpzone/" \;
 fi
 mkdir -p "$out"
+out=$(cd "$out" && pwd)
 name="warpzone-launcher-$version-x86_64.AppImage"
-(cd "$out" && ARCH=x86_64 VERSION="$version" "$tool" --appimage-extract-and-run --no-appstream \
+(cd "$out" && PATH="$tooldir/usr/bin:$PATH" ARCH=x86_64 VERSION="$version" "$tooldir/usr/bin/appimagetool" --no-appstream \
   -u "gh-releases-zsync|jarvis-jhk|warpzone|latest-all|warpzone-launcher-*-x86_64.AppImage.zsync" \
-  "$app" "$name" >/dev/null)
+  "$app" "$out/$name" >/dev/null)
+# appimagetool's own .zsync lands in the user's home directory whatever the
+# working directory; remove that one and write it next to the AppImage instead.
+rm -f "$(getent passwd "$(id -u)" | cut -d: -f6)/$name.zsync"
+(cd "$out" && "$tooldir/usr/bin/zsyncmake" -u "$name" -o "$name.zsync" "$name" >/dev/null)
 echo "$out/$name"

@@ -57,6 +57,15 @@ The previous version stays for rollback; older ones are removed.
 With *Update games automatically* on, updates install in the background
 (when the launcher runs) and before every start.
 
+## Starting a game
+
+Play starts the game with its output in `<data>/games/<game>/last-run.log`,
+shows *Running*, and minimizes the launcher so the game (and its first-start
+dialogs) is in front; the launcher comes back when the game ends. If it ends
+with an error within 30 seconds, the game page shows why, with the last lines
+of that log. Found game files go to the game as `WARPZONE_DATA_<ID>`
+environment variables ([integration](integration.md#game-files-the-launcher-found)).
+
 ## Game files
 
 For games with `[[data]]` requirements the launcher searches Steam libraries

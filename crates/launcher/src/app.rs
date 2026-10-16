@@ -73,7 +73,7 @@ impl GameState {
     }
 
     pub fn data_ready(&self) -> bool {
-        self.data.as_ref().is_none_or(|d| d.iter().all(|s| s.ready()))
+        self.data.as_ref().is_none_or(|d| d.iter().all(|s| s.ready() || s.req.optional))
     }
 }
 
@@ -89,6 +89,7 @@ pub enum Tab {
 
 pub enum Primary {
     Busy(String),
+    Running,
     Install,
     Update,
     Play,
@@ -432,6 +433,9 @@ impl App {
         if let Some(b) = &g.busy {
             return Primary::Busy(b.clone());
         }
+        if g.running {
+            return Primary::Running;
+        }
         if g.installed.is_some() {
             return if g.update_available() { Primary::Update } else { Primary::Play };
         }
@@ -549,30 +553,67 @@ impl App {
     }
 
     pub fn launch_with(&mut self, id: &str, args: Vec<String>) {
+        // The game always learns where the launcher found its files.
+        let env: Vec<(String, String)> = self
+            .games
+            .iter()
+            .find(|g| g.desc.id == id)
+            .and_then(|g| g.data.as_ref())
+            .map(|d| d.iter().filter_map(|s| s.chosen.as_ref().map(|p| (install::data_env_name(&s.req.id), p.display().to_string()))).collect())
+            .unwrap_or_default();
+        self.launch_full(id, args, env);
+    }
+
+    /// Start a game and follow it: the launcher steps aside while it runs,
+    /// comes back when it ends, and explains a start that failed.
+    pub fn launch_full(&mut self, id: &str, args: Vec<String>, env: Vec<(String, String)>) {
+        let ctx = self.jobs_ctx();
         let Some(g) = self.games.iter_mut().find(|g| g.desc.id == id) else { return };
         let Some(inst) = g.installed.clone() else { return };
-        match install::launch(&g.desc, &inst, &args) {
+        g.error = None;
+        match install::launch_env(&g.desc, &inst, &args, &env) {
             Ok(mut child) => {
                 g.running = true;
+                let name = g.desc.name.clone();
                 let seen = inst.version.clone();
                 let gid = id.to_string();
                 self.settings.seen_versions.insert(gid.clone(), seen);
                 self.settings.save();
+                if self.exit_after_launch {
+                    std::process::exit(0);
+                }
+                self.toast(format!("Starting {name}…"));
+                // Step aside so the game's window (and its first-start dialogs) is in front.
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                let started = Instant::now();
                 self.jobs.run(move || {
-                    let _ = child.wait();
+                    let status = child.wait();
+                    let ran = started.elapsed();
                     Box::new(move |app: &mut App| {
+                        let ctx = app.jobs_ctx();
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                        let failed = match &status {
+                            Ok(s) if !s.success() => Some(s.code().map(|c| format!("exit code {c}")).unwrap_or_else(|| "it was killed".into())),
+                            Err(e) => Some(e.to_string()),
+                            _ => None,
+                        };
                         if let Some(g) = app.game(&gid) {
                             g.running = false;
+                            if let Some(why) = failed.filter(|_| ran < Duration::from_secs(30)) {
+                                let tail = install::log_tail(&gid, 6);
+                                g.error = Some(format!(
+                                    "{name} stopped right after starting ({why}).{}",
+                                    if tail.is_empty() { String::new() } else { format!("\n{tail}") }
+                                ));
+                            }
                         }
                         app.scan_data(&gid);
                     })
                 });
-                if self.exit_after_launch {
-                    std::process::exit(0);
-                }
             }
             Err(e) => {
-                g.error = Some(e.to_string());
+                g.error = Some(format!("Could not start {}: {e}", g.desc.name));
             }
         }
     }
@@ -885,6 +926,93 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
         .show(ui, |ui| ui.label(RichText::new(text).size(12.0).color(color)));
 }
 
+#[derive(Clone, Copy)]
+enum Glyph {
+    Pad,
+    Globe,
+    Puzzle,
+    Trophy,
+}
+
+/// One capability icon (drawn, not a font glyph) with an optional number.
+fn cap_icon(ui: &mut egui::Ui, glyph: Glyph, label: &str, active: bool, tip: &str) {
+    let col = if active { Color32::from_rgb(226, 226, 244) } else { Color32::from_rgb(92, 92, 120) };
+    let resp = ui
+        .horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(18.0, 18.0), egui::Sense::hover());
+            let c = rect.center();
+            let p = ui.painter();
+            let v = |x: f32, y: f32| c + Vec2::new(x, y);
+            let thin = Stroke::new(1.4, col);
+            match glyph {
+                Glyph::Pad => {
+                    p.rect_filled(egui::Rect::from_center_size(v(0.0, -0.5), Vec2::new(15.0, 8.0)), CornerRadius::same(4), col);
+                    p.circle_filled(v(-5.0, 2.5), 3.2, col);
+                    p.circle_filled(v(5.0, 2.5), 3.2, col);
+                    p.rect_filled(egui::Rect::from_center_size(v(-4.0, -0.5), Vec2::new(4.0, 1.4)), CornerRadius::ZERO, PANEL);
+                    p.rect_filled(egui::Rect::from_center_size(v(-4.0, -0.5), Vec2::new(1.4, 4.0)), CornerRadius::ZERO, PANEL);
+                    p.circle_filled(v(3.3, -1.6), 1.0, PANEL);
+                    p.circle_filled(v(5.2, 0.3), 1.0, PANEL);
+                }
+                Glyph::Globe => {
+                    p.circle_stroke(c, 7.0, thin);
+                    let pts: Vec<egui::Pos2> = (0..=24)
+                        .map(|i| {
+                            let a = i as f32 / 24.0 * std::f32::consts::TAU;
+                            v(3.2 * a.cos(), 7.0 * a.sin())
+                        })
+                        .collect();
+                    p.add(egui::Shape::line(pts, thin));
+                    p.line_segment([v(-7.0, 0.0), v(7.0, 0.0)], thin);
+                    p.line_segment([v(-5.8, -3.6), v(5.8, -3.6)], Stroke::new(1.0, col));
+                    p.line_segment([v(-5.8, 3.6), v(5.8, 3.6)], Stroke::new(1.0, col));
+                }
+                Glyph::Puzzle => {
+                    p.rect_filled(egui::Rect::from_center_size(v(-1.0, 1.5), Vec2::new(11.0, 11.0)), CornerRadius::same(2), col);
+                    p.circle_filled(v(-1.0, -5.0), 2.7, col);
+                    p.circle_filled(v(5.6, 1.5), 2.7, col);
+                    p.circle_filled(v(-1.0, 8.0), 2.0, PANEL);
+                }
+                Glyph::Trophy => {
+                    p.rect_filled(egui::Rect::from_min_max(v(-4.5, -7.0), v(4.5, 0.5)), CornerRadius { nw: 1, ne: 1, sw: 5, se: 5 }, col);
+                    p.circle_stroke(v(-5.0, -4.2), 2.3, thin);
+                    p.circle_stroke(v(5.0, -4.2), 2.3, thin);
+                    p.rect_filled(egui::Rect::from_min_max(v(-1.0, 0.0), v(1.0, 4.0)), CornerRadius::ZERO, col);
+                    p.rect_filled(egui::Rect::from_min_max(v(-4.5, 4.0), v(4.5, 6.5)), CornerRadius::same(1), col);
+                }
+            }
+            if !label.is_empty() {
+                ui.label(RichText::new(label).size(13.0).color(col).strong());
+            }
+        })
+        .response;
+    resp.on_hover_text(tip);
+}
+
+/// The icon row: controllers, online, mods, ladder — bright when the game can
+/// do it today, dim when it is declared but still coming.
+fn capability_row(ui: &mut egui::Ui, d: &GameDescriptor) {
+    let c = d.capabilities();
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 12.0;
+        if let Some(n) = c.local_players {
+            let tip = if n == 1 { "Single player on one screen".to_string() } else { format!("Up to {n} players on one screen, each with a controller") };
+            cap_icon(ui, Glyph::Pad, &n.to_string(), true, &tip);
+        }
+        if let Some(n) = c.online_players {
+            let tip = if c.online_now { format!("Online with up to {n} players through Warpzone") } else { format!("Online play (up to {n}) is coming") };
+            cap_icon(ui, Glyph::Globe, &n.to_string(), c.online_now, &tip);
+        }
+        if c.mods {
+            cap_icon(ui, Glyph::Puzzle, "", c.mods_now, if c.mods_now { "Mods from the Warpzone archive" } else { "Mod support is coming" });
+        }
+        if c.ladder {
+            cap_icon(ui, Glyph::Trophy, "", c.ladder_now, if c.ladder_now { "Ranked ladder with seasons" } else { "Ranked play is coming" });
+        }
+    });
+}
+
 fn primary_button(ui: &mut egui::Ui, text: &str, big: bool) -> egui::Response {
     let t = RichText::new(text).color(Color32::WHITE).strong().size(if big { 18.0 } else { 15.0 });
     let b = egui::Button::new(t).fill(ACCENT).corner_radius(CornerRadius::same(10)).min_size(if big { Vec2::new(180.0, 44.0) } else { Vec2::new(110.0, 32.0) });
@@ -1005,9 +1133,11 @@ impl App {
                     open = true;
                 }
                 Frame::new().inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    capability_row(ui, &g.desc);
                     ui.horizontal(|ui| {
                         let status = match (&g.installed, &primary) {
                             (_, Primary::Busy(b)) => b.clone(),
+                            (_, Primary::Running) => "Running — the launcher is minimized while you play".into(),
                             (Some(i), Primary::Update) => format!("{} - update ready", i.version),
                             (Some(i), _) => format!("Installed {}", i.version),
                             (None, Primary::FindData) => "Needs your game files".into(),
@@ -1061,6 +1191,9 @@ impl App {
                                     }
                                 }
                                 Primary::Unavailable(_) => {}
+                                Primary::Running => {
+                                    ui.add_enabled(false, egui::Button::new("Running"));
+                                }
                             }
                         });
                     });
@@ -1126,6 +1259,7 @@ impl App {
                             badge(ui, "Warpzone support coming", MUTED);
                         }
                     });
+                    capability_row(ui, &g.desc);
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match &primary {
                     Primary::Play => {
@@ -1157,6 +1291,9 @@ impl App {
                     Primary::FindData => {
                         ui.label(RichText::new("Your game files are needed first (below)").color(WARN));
                     }
+                    Primary::Running => {
+                        ui.add_enabled(false, egui::Button::new(RichText::new("Running").size(18.0)).min_size(Vec2::new(180.0, 44.0)));
+                    }
                     Primary::Unavailable(s) => {
                         ui.label(RichText::new(s).color(MUTED));
                     }
@@ -1177,6 +1314,8 @@ impl App {
                                     ui.label(RichText::new("in place").color(OK));
                                 } else if s.chosen.is_some() {
                                     ui.label(RichText::new("found").color(OK));
+                                } else if s.req.optional {
+                                    ui.label(RichText::new("optional").color(MUTED));
                                 } else {
                                     ui.label(RichText::new("needed").color(WARN));
                                 }

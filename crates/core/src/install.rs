@@ -317,6 +317,33 @@ pub fn executable(desc: &GameDescriptor, inst: &Installed) -> Option<PathBuf> {
 
 /// Start the game. `extra` are added after the descriptor's own `args`.
 pub fn launch(desc: &GameDescriptor, inst: &Installed, extra: &[String]) -> Result<std::process::Child> {
+    launch_env(desc, inst, extra, &[])
+}
+
+/// Environment variable through which the launcher hands a found data source
+/// (`[[data]]` requirement `id`) to the game: `WARPZONE_DATA_<ID>` with the id
+/// upper-cased and `-`/`.` as `_` (`rom` → `WARPZONE_DATA_ROM`). Set on every
+/// start while the launcher knows a source, so a game can import or simply
+/// use the files the launcher found.
+pub fn data_env_name(req_id: &str) -> String {
+    format!("WARPZONE_DATA_{}", req_id.to_ascii_uppercase().replace(['-', '.'], "_"))
+}
+
+/// The game's output of its most recent start (stdout and stderr).
+pub fn log_path(game: &str) -> PathBuf {
+    crate::paths::game_dir(game).join("last-run.log")
+}
+
+/// The last `lines` lines of [`log_path`].
+pub fn log_tail(game: &str, lines: usize) -> String {
+    let text = std::fs::read_to_string(log_path(game)).unwrap_or_default();
+    let all: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+    all[all.len().saturating_sub(lines)..].join("\n")
+}
+
+/// Start the game with extra arguments and environment; its output goes to
+/// [`log_path`] so a launcher can show why a start failed.
+pub fn launch_env(desc: &GameDescriptor, inst: &Installed, extra: &[String], env: &[(String, String)]) -> Result<std::process::Child> {
     let exe = executable(desc, inst).ok_or_else(|| Error::Other(format!("cannot find the {} executable in {}", desc.name, inst.dir.display())))?;
     let mut cmd = std::process::Command::new(&exe);
     cmd.current_dir(exe.parent().unwrap_or(&inst.dir));
@@ -326,6 +353,16 @@ pub fn launch(desc: &GameDescriptor, inst: &Installed, extra: &[String]) -> Resu
     cmd.args(extra);
     cmd.env("WARPZONE_LAUNCHED", "1");
     cmd.env("WARPZONE_SERVER", crate::server_url());
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    if let Ok(mut log) = std::fs::File::create(log_path(&desc.id)) {
+        use std::io::Write;
+        let _ = writeln!(log, "# {} {} — {} {}", desc.name, inst.version, exe.display(), extra.join(" "));
+        if let Ok(err) = log.try_clone() {
+            cmd.stdout(log).stderr(err);
+        }
+    }
     Ok(cmd.spawn()?)
 }
 

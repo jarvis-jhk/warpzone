@@ -100,3 +100,9 @@ footer .right { margin-left: auto; }
   .two { grid-template-columns: 1fr; }
   header.top nav { display: none; }
 }
+
+.caps { display: flex; gap: 14px; align-items: center; }
+.cap { display: inline-flex; align-items: center; gap: 4px; color: #5c5c78; font-weight: 700; font-size: 13.5px; }
+.cap svg { fill: currentColor; stroke: currentColor; }
+.cap svg .cut { fill: var(--card); stroke: none; }
+.cap.on { color: #e2e2f4; }

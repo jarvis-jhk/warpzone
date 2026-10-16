@@ -14,6 +14,7 @@ Rollback online play, ranked 1 vs 1, free-for-all and 2 vs 2 come through Warpzo
 homepage = "https://github.com/jarvis-jhk/funny-furries"
 accent = "#f59e0b"
 tier = 2
+local_players = 4
 status = "preview"
 requires = "your own copy of Funny Furries 2 Xmas — the game imports it at first start"
 

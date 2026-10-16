@@ -6,6 +6,9 @@
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use tiny_skia::{Color, FillRule, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap, Point, RadialGradient, Rect, SpreadMode, Stroke, Transform};
 
+/// Size of one pixel-art pixel in output pixels.
+const PIXEL: u32 = 5;
+
 pub const DISPLAY_FONT: &[u8] = include_bytes!("../../../assets/fonts/RussoOne-Regular.ttf");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -555,8 +558,27 @@ pub fn render(spec: &Spec, kind: Kind) -> (u32, u32, Vec<u8>) {
             text(&mut px, &font, size, (wf - tw) / 2.0, hf * 0.66, &initials, Rgb(1.0, 1.0, 1.0), 1.0);
         }
         _ => {
-            background(&mut px, acc, spec.motif);
-            motif(&mut px, spec.motif, acc, &mut rng);
+            // A game's own pixel-art scene, else the vector motif.
+            match crate::pixel::scene(spec.id, (w / PIXEL) as i32, (h / PIXEL) as i32) {
+                Some(scene) => {
+                    let (sw, _, rgba) = scene.upscale(PIXEL as i32);
+                    let data = px.data_mut();
+                    for y in 0..h as usize {
+                        for x in 0..w as usize {
+                            let (sx, sy) = (x.min(sw as usize - 1), y);
+                            let si = (sy * sw as usize + sx) * 4;
+                            let di = (y * w as usize + x) * 4;
+                            if si + 3 < rgba.len() {
+                                data[di..di + 4].copy_from_slice(&rgba[si..si + 4]);
+                            }
+                        }
+                    }
+                }
+                None => {
+                    background(&mut px, acc, spec.motif);
+                    motif(&mut px, spec.motif, acc, &mut rng);
+                }
+            }
             match kind {
                 Kind::Tile => {
                     shade_bottom(&mut px, 0.45);
