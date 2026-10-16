@@ -1,4 +1,17 @@
 [package]
 name = "warpzone-capi"
+description = "Warpzone C library (libwarpzone): include/warpzone.h"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "warpzone"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+warpzone-core.workspace = true
+warpzone-protocol.workspace = true
+serde_json.workspace = true
