@@ -14,6 +14,19 @@
   local server (dev/server.toml), never production: they share Jan's IP.
   The container has no pkg-config; .toolchain/sysshim/bin/pkg-config is a
   tiny libudev-only shim (put it on PATH to build the launcher here).
+  DEPLOY PENDING (vtt): config/server.toml already has the appimage asset
+  (pushed; 0.1.1 reads it fine). Still to do once Jan approves the .env change
+  (asked via the gateway 14:25 UTC; the gateway dropped the connection twice,
+  so it may not have reached him): WARPZONE_VERSION=0.1.2,
+  WARPZONE_SHA256=4ead1de3c36f05d34c7c0561a6bd86d2bedb88aec4518685fb727d3a856f872c,
+  back up data/warpzone.db*, `docker compose up -d --build`; THEN push
+  games/*.toml to config/games/ (they carry local_players/optional, which the
+  0.1.1 server rejects — never push them before the server runs 0.1.2).
+- 2026-10-16 (report t_mvb1n7hu4dd364, drmario lane): drmario64-vs tier 3 with
+  1v1 rooms/ladder and join/host args is PR #10. Merge only after
+  drmario64-vs v0.2.0 is released (only v0.1.0 exists; the launcher installs the
+  latest release and would hand --warpzone-join to a game without it). #5 and
+  #9 closed (in main).
 
 - 2026-10-16 (reports t_mvayqjr13bdvuz from furries, t_mvaz3n503dowbo from
   diablo2): funny-furries is tier 2, not 3 (no mod sync, leaderboards, room
