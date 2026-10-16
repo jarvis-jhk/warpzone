@@ -565,4 +565,23 @@ mod tests {
         let long: GameDescriptor = toml::from_str(&src("relaunch_linger = 7200")).unwrap();
         assert!(long.validate().is_err());
     }
+
+    /// Every descriptor the project ships parses, validates and is named by its id
+    /// (the server skips one that does not, which drops the game from the site).
+    #[test]
+    fn shipped_descriptors_are_valid() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../games");
+        let mut n = 0;
+        for e in std::fs::read_dir(&dir).unwrap().flatten() {
+            let p = e.path();
+            if p.extension().is_none_or(|x| x != "toml") {
+                continue;
+            }
+            let d: GameDescriptor = toml::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+            d.validate().unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+            assert_eq!(p.file_stem().unwrap(), d.id.as_str(), "{}", p.display());
+            n += 1;
+        }
+        assert!(n > 0);
+    }
 }

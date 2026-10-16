@@ -1,8 +1,9 @@
 # Funny Furries — JARVIS's SDL2 rebuild of the 1999 brawler.
-# It already has its own rollback netcode, join codes and STUN hole punching
-# (v0.3.0); it moves that transport onto Warpzone (relay fallback, rooms,
-# ranked) in its roadmap. Until then (tier 0, no [tier0]) the launcher installs
-# and starts it; rooms/ladder below are what the integration will use.
+# Since v0.4.0 it links libwarpzone: --warpzone-join/--warpzone-host, code
+# rooms, direct/relayed play and the three ranked queues below (tier 2). Not
+# yet: public room browser, host approval, leaderboards, mod sync. The mods
+# section stays commented out until the game syncs mods (tier 3), so neither
+# a "mods" badge nor the archive promises what the game cannot use yet.
 id = "funny-furries"
 name = "Funny Furries"
 tagline = "The chaotic 1999 couch brawler, rebuilt: up to four furries, one arena, far too many weapons."
@@ -12,7 +13,7 @@ A faithful SDL2 reimplementation of Funny Furries 2 Xmas, the Click & Create bra
 Rollback online play, ranked 1 vs 1, free-for-all and 2 vs 2 come through Warpzone."""
 homepage = "https://github.com/jarvis-jhk/funny-furries"
 accent = "#f59e0b"
-tier = 0
+tier = 2
 status = "preview"
 requires = "your own copy of Funny Furries 2 Xmas — the game imports it at first start"
 
@@ -38,14 +39,14 @@ presets = [
 ]
 display = [{ key = "arena", label = "Arena" }, { key = "mode", label = "Mode" }]
 
-[mods]
-categories = [
-  { id = "arena", label = "Arenas" },
-  { id = "skin", label = "Skins" },
-  { id = "weapon", label = "Weapons" },
-  { id = "sound", label = "Sounds" },
-]
-max_size_mb = 50
+# [mods]
+# categories = [
+#   { id = "arena", label = "Arenas" },
+#   { id = "skin", label = "Skins" },
+#   { id = "weapon", label = "Weapons" },
+#   { id = "sound", label = "Sounds" },
+# ]
+# max_size_mb = 50
 
 [[ladder]]
 id = "1v1"

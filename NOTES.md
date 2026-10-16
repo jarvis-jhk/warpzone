@@ -1,5 +1,18 @@
 # Notes
 
+- 2026-10-16 (reports t_mvayqjr13bdvuz from furries, t_mvaz3n503dowbo from
+  diablo2): funny-furries is tier 2, not 3 (no mod sync, leaderboards, room
+  browser or approval yet); its [mods] is commented out so no "mods" badge or
+  archive page promises what the game cannot use. PR #1 (--import-copy) and
+  PR #2 (diablo2-couch asset names) merged. diablo2-couch is Windows-only: its
+  v0.0.1 Linux tarball needs glibc 2.43 and the launcher cannot install
+  .flatpak bundles; restore linux/deck when that lane ships an older-glibc
+  build. Public UDP 169.58.177.166:3478 answers STUN from outside (laptop
+  container); STUN and relay share that socket, so the furries lane's failed
+  netcheck from the vtt container is hairpin. A full two-account relay test
+  was not possible: registration is capped per IP per day. Release archives
+  now ship licenses + cargo-about THIRD-PARTY-NOTICES.html (from the next tag).
+
 - 2026-10-16 (report t_mvayewss38upjn, from the opents lane): tier-0 games that
   restart themselves per mission (OpenTS Co-op, Spawner_Relaunch) lost the
   tunnel when the first process exited. New `[tier0] relaunch_linger = <s>`

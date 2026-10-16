@@ -10,6 +10,9 @@
 - Launcher (tier 0): descriptors can set `[tier0] relaunch_linger` for games
   that restart themselves between missions; the tunnel and room stay up until
   the game has been quiet that long. The staged seed now stays below 2^31.
+- Release archives: every libwarpzone, wz and launcher archive (the Windows
+  ones too) carries LICENSE-MIT, LICENSE-APACHE and THIRD-PARTY-NOTICES.html
+  for the Rust crates linked into it (generated with cargo-about).
 
 ## 0.1.1
 
