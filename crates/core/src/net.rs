@@ -752,7 +752,10 @@ impl Net {
                     }
                 }
                 // Keepalive when idle, and an RTT probe every second regardless.
-                if p.crypto.is_some() && p.path.is_some() && (now.duration_since(p.last_send) > KEEPALIVE || now.duration_since(p.last_ping) > Duration::from_secs(1)) {
+                if p.crypto.is_some()
+                    && p.path.is_some()
+                    && (now.duration_since(p.last_send) > KEEPALIVE || now.duration_since(p.last_ping) > Duration::from_secs(1))
+                {
                     p.last_ping = now;
                     ping = true;
                 }

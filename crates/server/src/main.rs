@@ -223,6 +223,7 @@ pub fn router(state: AppState) -> Router {
         .route("/games/{id}/mods/{name}", get(web::mod_page))
         .route("/join/{id}", get(web::join_page))
         .route("/static/{file}", get(web::static_file))
+        .route("/art/{file}", get(web::art_file))
         .route("/endpoints.json", get(endpoints))
         .route("/healthz", get(|| async { "ok" }))
         .fallback(web::fallback)
