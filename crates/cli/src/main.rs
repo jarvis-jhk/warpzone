@@ -33,6 +33,7 @@ Games:
   install <game>                 install or update a game (verified against GitHub)
   installed                      games installed here
   launch <game> [args...]        start an installed game
+  find-data <game> [folder...]   look for the original game data this game needs
   rollback <game>                go back to the previously installed version
   uninstall <game>               remove an installed game
 
@@ -188,6 +189,32 @@ fn main() {
             let i = install::installed(game).unwrap_or_else(|| die("not installed here; `wz install` first"));
             let mut child = ok(install::launch(&desc, &i, &a[2..]));
             let _ = child.wait();
+        }
+        "find-data" => {
+            let desc = ok(api(&server).game(arg(a, 1, "game")));
+            let inst = install::installed(&desc.id);
+            if desc.data.is_empty() {
+                println!("{} needs no extra game data", desc.name);
+            }
+            let extra: Vec<std::path::PathBuf> = a[2..].iter().map(std::path::PathBuf::from).collect();
+            for r in &desc.data {
+                let present = warpzone_core::gamedata::present(r, inst.as_ref().map(|i| i.dir.as_path()));
+                println!("{} — {}", r.label, if present { "already in place" } else { "needed" });
+                let found = warpzone_core::gamedata::find(r, &extra);
+                for f in &found {
+                    let c = warpzone_core::gamedata::check(r, &f.path);
+                    println!("  found ({}) {}  [{:?}]", f.source, f.path.display(), c);
+                }
+                if found.is_empty() && !present {
+                    println!("  not found. Looked in Steam, GOG/Heroic/Lutris/Wine, Downloads and discs.");
+                    for l in r.free.iter() {
+                        println!("  free: {} {}", l.label, l.url);
+                    }
+                    for l in r.buy.iter() {
+                        println!("  buy:  {} {}", l.label, l.url);
+                    }
+                }
+            }
         }
         "rollback" => {
             let i = ok(install::rollback(arg(a, 1, "game")));

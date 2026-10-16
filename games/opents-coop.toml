@@ -17,6 +17,8 @@ tier = 0
 status = "launcher lobby experimental"
 requires = "original Tiberian Sun + Firestorm data; Windows (or Wine)"
 
+motif = "tanks"
+
 [install]
 github = "jarvis-jhk/opents-coop"
 prerelease = true
@@ -67,3 +69,13 @@ Ip=127.0.0.1
 Port={{port}}
 {{/each}}
 """
+
+[[data]]
+id = "tibsun"
+label = "Tiberian Sun and Firestorm game files"
+description = "The folder of an installed Tiberian Sun (it contains TIBSUN.MIX). EA released Tiberian Sun as freeware; it is also part of the Command & Conquer Ultimate Collection."
+files = ["./TIBSUN.MIX"]
+steam = ["Command and Conquer Tiberian Sun", "Command & Conquer Tiberian Sun"]
+gog = ["Tiberian Sun"]
+free = [{ label = "CnCNet (free download)", url = "https://cncnet.org/tiberian-sun" }]
+buy = [{ label = "EA app: C&C Ultimate Collection", url = "https://www.ea.com/games/command-and-conquer/command-and-conquer-the-ultimate-collection" }]

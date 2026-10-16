@@ -10,6 +10,17 @@ tier = 0
 status = "in development"
 requires = "your own Diablo II: Lord of Destruction data"
 
+motif = "crypt"
+
 [install]
 github = "jarvis-jhk/diablo2-couch"
 assets = { linux = "*linux*x86_64*.tar.gz", deck = "*linux*x86_64*.tar.gz", windows = "*windows*.zip" }
+
+[[data]]
+id = "d2lod"
+label = "Diablo II + Lord of Destruction (classic) game folder"
+description = "The folder of your installed classic Diablo II with the expansion (it contains d2exp.mpq). Resurrected does not work."
+files = ["./d2exp.mpq"]
+gog = ["Diablo II"]
+import_args = ["--data", "{path}"]
+buy = [{ label = "Blizzard shop", url = "https://shop.battle.net/" }]

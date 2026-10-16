@@ -15,6 +15,8 @@ tier = 0
 status = "in development"
 requires = "your own Super Mario Land ROM — none is included or downloadable here"
 
+motif = "pipes"
+
 [install]
 github = "jarvis-jhk/super-mario-land-port"
 prerelease = true
@@ -59,3 +61,15 @@ seasonal = true
 id = "1-1"
 title = "World 1-1"
 kind = "time"
+
+[[data]]
+id = "rom"
+label = "Super Mario Land ROM (World, Rev A / v1.1)"
+description = "A dump of your own Game Boy cartridge. Warpzone never downloads, uploads or shares ROMs; it only finds the file you already have."
+files = ["*super mario land*.gb", "sml.gb"]
+discs = false
+import_args = ["--rom", "{path}"]
+known = [
+  { label = "World, Rev A (v1.1)", size = 65536, sha1 = "418203621b887caa090215d97e3f509b79affd3e", sha256 = "49fbd2f61f953d5ef28cab73e357e524c3009ad19fcf30f6a9ee0ae273be41dc" },
+  { label = "World (v1.0) — not supported yet", size = 65536, sha1 = "3a4ddb39b234a67ffb361ee7abc3d23e0a8b1c89", sha256 = "470d6c45c9bcf7f0397d00c1ae6de727c63dd471049c8eedbefdc540ceea80b4", supported = false },
+]

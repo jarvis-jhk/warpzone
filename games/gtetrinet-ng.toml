@@ -9,6 +9,8 @@ homepage = "https://github.com/jarvis-jhk/gtetrinet-ng"
 accent = "#22c55e"
 tier = 0
 
+motif = "blocks"
+
 [install]
 github = "jarvis-jhk/gtetrinet-ng"
 checksums = "SHA256SUMS"

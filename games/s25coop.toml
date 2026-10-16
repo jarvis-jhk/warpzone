@@ -13,6 +13,8 @@ accent = "#3b82f6"
 tier = 0
 requires = "the original The Settlers II data (GOG installer or CD) — the installer extracts it"
 
+motif = "castle"
+
 [install]
 github = "jarvis-jhk/s25coop"
 assets = { linux = "s25coop-*-linux-x86_64.tar.gz", deck = "s25coop-*-linux-x86_64.tar.gz", windows = "s25coop-*-windows-x64.zip" }
@@ -35,3 +37,13 @@ categories = [
 ]
 contains_code = true
 max_size_mb = 50
+
+[[data]]
+id = "s2-gold"
+label = "The Settlers II (Gold Edition) game files"
+description = "An installed copy with its DATA and GFX folders, or a copy of the CD. With the GOG offline installer (setup_the_settlers_2_gold_….exe) in your Downloads folder, s25coop extracts the files itself."
+files = ["DATA/IO/IO.DAT"]
+gog = ["Settlers 2 GOLD", "The Settlers 2 Gold Edition", "Settlers 2"]
+copy_to = "~/.local/share/s25coop/S2"
+present = ["~/.local/share/s25coop/S2/DATA"]
+buy = [{ label = "GOG.com", url = "https://www.gog.com/en/game/the_settlers_2_gold_edition" }]

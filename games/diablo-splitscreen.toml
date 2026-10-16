@@ -10,6 +10,19 @@ tier = 0
 status = "in development"
 requires = "your own Diablo data file (DIABDAT.MPQ)"
 
+motif = "crypt"
+
 [install]
 github = "jarvis-jhk/diablo-splitscreen"
 assets = { linux = "*linux*x86_64*.tar.gz", deck = "*linux*x86_64*.tar.gz", windows = "*windows*.zip" }
+
+[[data]]
+id = "diabdat"
+label = "Diablo game data (DIABDAT.MPQ)"
+description = "From the Diablo CD or an installed copy (GOG or Battle.net). The shareware spawn.mpq plays the demo part of the game."
+files = ["DIABDAT.MPQ", "spawn.mpq"]
+gog = ["Diablo"]
+copy_to = "~/.local/share/diasurgical/devilution"
+present = ["~/.local/share/diasurgical/devilution/DIABDAT.MPQ", "~/.local/share/diasurgical/devilution/spawn.mpq"]
+buy = [{ label = "GOG.com", url = "https://www.gog.com/game/diablo" }]
+free = [{ label = "Shareware data (spawn.mpq)", url = "https://github.com/diasurgical/devilutionx-assets/releases/latest/download/spawn.mpq" }]

@@ -15,6 +15,8 @@ tier = 0
 status = "preview"
 requires = "your own copy of Funny Furries 2 Xmas — the game imports it at first start"
 
+motif = "arena"
+
 [install]
 github = "jarvis-jhk/funny-furries"
 prerelease = true
@@ -59,3 +61,10 @@ id = "2v2"
 title = "2 vs 2"
 teams = 2
 team_size = 2
+
+[[data]]
+id = "ff2xmas"
+label = "Funny Furries 2 Xmas (full version)"
+description = "The original game's funnyfurries.zip or its FF2xmas.cca file. Funny Furries imports it on first start; Warpzone only finds it for you."
+files = ["funnyfurries.zip", "FF2xmas.cca"]
+import_args = ["--import", "{path}"]

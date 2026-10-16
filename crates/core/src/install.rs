@@ -108,27 +108,47 @@ pub fn install(api: &Api, desc: &GameDescriptor, release: &ReleaseInfo, progress
     let staging = gdir.join(".staging");
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(&staging)?;
-    let file = staging.join(&asset.name);
-    let sha = api.fetch_to(&asset.url, digest.as_ref().map(|d| d.0.as_str()), &file, progress)?;
+    let unpacked = staging.join("files");
+    let is_tar = asset.name.ends_with(".tar.gz") || asset.name.ends_with(".tgz");
+    let sha = if is_tar && inst.unpack != "file" && inst.minisign_key.is_none() {
+        // Fastest path: download, hash and unpack in one stream. Nothing is
+        // switched in unless the hash matches at the end.
+        let sha = api.stream_url(&asset.url, &mut |r: &mut dyn std::io::Read| {
+            let mut hr = HashingReader::new(r, progress);
+            untar_stream(&mut hr, &unpacked)?;
+            std::io::copy(&mut hr, &mut std::io::sink())?;
+            Ok(hr.finish())
+        })?;
+        if let Some((want, _)) = &digest
+            && !sha.eq_ignore_ascii_case(want)
+        {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(Error::Other(format!("checksum mismatch for {}", asset.name)));
+        }
+        sha
+    } else {
+        let file = staging.join(&asset.name);
+        let sha = api.fetch_to(&asset.url, digest.as_ref().map(|d| d.0.as_str()), &file, progress)?;
+        if let Some(pk) = &inst.minisign_key {
+            let sig_url = format!("{}.minisig", asset.url);
+            let sig = String::from_utf8_lossy(&api.fetch(&sig_url, 64 * 1024)?).to_string();
+            verify_minisign(pk, &sig, &std::fs::read(&file)?)?;
+        }
+        if inst.unpack == "file" {
+            std::fs::create_dir_all(&unpacked)?;
+            std::fs::rename(&file, unpacked.join(&asset.name))?;
+        } else if asset.name.ends_with(".zip") {
+            crate::modstore::unzip_safe(&file, &unpacked)?;
+        } else if is_tar {
+            untar_stream(&mut std::fs::File::open(&file)?, &unpacked)?;
+        } else {
+            std::fs::create_dir_all(&unpacked)?;
+            std::fs::rename(&file, unpacked.join(&asset.name))?;
+        }
+        sha
+    };
     if digest.is_none() {
         log::warn!("{}: GitHub states no checksum for {}; installed by its HTTPS download alone", desc.id, asset.name);
-    }
-    if let Some(pk) = &inst.minisign_key {
-        let sig_url = format!("{}.minisig", asset.url);
-        let sig = String::from_utf8_lossy(&api.fetch(&sig_url, 64 * 1024)?).to_string();
-        verify_minisign(pk, &sig, &std::fs::read(&file)?)?;
-    }
-    let unpacked = staging.join("files");
-    if inst.unpack == "file" {
-        std::fs::create_dir_all(&unpacked)?;
-        std::fs::rename(&file, unpacked.join(&asset.name))?;
-    } else if asset.name.ends_with(".zip") {
-        crate::modstore::unzip_safe(&file, &unpacked)?;
-    } else if asset.name.ends_with(".tar.gz") || asset.name.ends_with(".tgz") {
-        untar_safe(&file, &unpacked)?;
-    } else {
-        std::fs::create_dir_all(&unpacked)?;
-        std::fs::rename(&file, unpacked.join(&asset.name))?;
     }
     let info = Installed {
         game: desc.id.clone(),
@@ -227,9 +247,36 @@ pub fn launch(desc: &GameDescriptor, inst: &Installed, extra: &[String]) -> Resu
     Ok(cmd.spawn()?)
 }
 
-fn untar_safe(archive: &Path, dest: &Path) -> Result<()> {
-    let f = std::fs::File::open(archive)?;
-    let mut t = tar::Archive::new(flate2::read::GzDecoder::new(f));
+/// Hashes everything read through it and reports progress.
+struct HashingReader<'a, 'b> {
+    inner: &'a mut dyn std::io::Read,
+    hash: sha2::Sha256,
+    total: u64,
+    progress: &'b mut dyn FnMut(u64),
+}
+
+impl<'a, 'b> HashingReader<'a, 'b> {
+    fn new(inner: &'a mut dyn std::io::Read, progress: &'b mut dyn FnMut(u64)) -> Self {
+        HashingReader { inner, hash: <sha2::Sha256 as sha2::Digest>::new(), total: 0, progress }
+    }
+    fn finish(self) -> String {
+        hex::encode(sha2::Digest::finalize(self.hash))
+    }
+}
+
+impl std::io::Read for HashingReader<'_, '_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        sha2::Digest::update(&mut self.hash, &buf[..n]);
+        self.total += n as u64;
+        (self.progress)(self.total);
+        Ok(n)
+    }
+}
+
+/// Unpack a .tar.gz stream with path and link checks.
+fn untar_stream(r: &mut dyn std::io::Read, dest: &Path) -> Result<()> {
+    let mut t = tar::Archive::new(flate2::read::GzDecoder::new(r));
     std::fs::create_dir_all(dest)?;
     for e in t.entries()? {
         let mut e = e?;

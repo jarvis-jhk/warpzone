@@ -64,6 +64,95 @@ pub struct GameDescriptor {
     pub season: String,
     #[serde(default)]
     pub tier0: Option<Tier0>,
+    /// Original game data the player must provide; the launcher searches for
+    /// it and hands it to the game (`docs/descriptors.md#game-data`).
+    #[serde(default)]
+    pub data: Vec<DataRequirement>,
+    /// Banner motif for the launcher's procedural tile when there is no
+    /// `art`: `arena`, `blocks`, `castle`, `crypt`, `pipes`, `tanks`, `waves`.
+    #[serde(default)]
+    pub motif: Option<String>,
+}
+
+/// Original data a game needs and how the launcher finds and hands it over.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DataRequirement {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    /// What identifies a usable source, case-insensitive globs. A plain name
+    /// matches a file (`DIABDAT.MPQ`, `setup_the_settlers_2_gold_*.exe`); a
+    /// pattern with `/` matches a directory containing that path
+    /// (`DATA/IO/IO.DAT` finds the folder holding `DATA`); `./d2exp.mpq`
+    /// matches the folder that directly contains the file.
+    pub files: Vec<String>,
+    /// Folder names under Steam's `steamapps/common`.
+    #[serde(default)]
+    pub steam: Vec<String>,
+    /// Folder names of GOG installs (GOG Galaxy, Heroic, `~/GOG Games`).
+    #[serde(default)]
+    pub gog: Vec<String>,
+    /// Also look in the Downloads folder.
+    #[serde(default = "yes")]
+    pub downloads: bool,
+    /// Also look on mounted discs and images.
+    #[serde(default = "yes")]
+    pub discs: bool,
+    /// Where to buy it.
+    #[serde(default)]
+    pub buy: Vec<Link>,
+    /// Legal free sources (shareware, freeware releases).
+    #[serde(default)]
+    pub free: Vec<Link>,
+    /// Hand-over: run the game once with these arguments (`{path}` = what was
+    /// found) — preferred, the game's own importer validates it.
+    #[serde(default)]
+    pub import_args: Vec<String>,
+    /// Or copy what was found here (`{install}` = the game's install
+    /// directory, `~` = home). A directory match copies the directory's contents.
+    #[serde(default)]
+    pub copy_to: Option<String>,
+    /// Path (same placeholders) whose existence means the data is already in
+    /// place, so the launcher does not ask again.
+    #[serde(default)]
+    pub present: Vec<String>,
+    /// Fingerprints of known-good files. When present, the launcher checks a
+    /// found file before anything is downloaded: verified, unknown or wrong.
+    #[serde(default)]
+    pub known: Vec<KnownFile>,
+}
+
+/// A known-good file: for a file match the file itself (`file` empty), for a
+/// directory match the file at `file` inside it. Size is compared first, so
+/// large files are only hashed when the size already fits.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct KnownFile {
+    /// What this fingerprint is ("World, Rev A (v1.1)", "GOG installer 2.0").
+    pub label: String,
+    #[serde(default)]
+    pub file: String,
+    pub size: u64,
+    #[serde(default)]
+    pub sha1: Option<String>,
+    #[serde(default)]
+    pub sha256: Option<String>,
+    /// `false` for versions the game does not accept (shown as "wrong version").
+    #[serde(default = "yes")]
+    pub supported: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Link {
+    pub label: String,
+    pub url: String,
+}
+
+fn yes() -> bool {
+    true
 }
 
 fn default_accent() -> String {
@@ -313,6 +402,16 @@ impl GameDescriptor {
         if let Some(t) = &self.tier0 {
             if !matches!(t.transport.as_str(), "udp" | "tcp") {
                 return bad("tier0.transport must be udp or tcp".into());
+            }
+        }
+        for d in &self.data {
+            if !valid_slug(&d.id) || d.files.is_empty() {
+                return bad(format!("data {}: needs an id and file patterns", d.id));
+            }
+            for l in d.buy.iter().chain(d.free.iter()) {
+                if !l.url.starts_with("https://") {
+                    return bad(format!("data {}: links must be https", d.id));
+                }
             }
         }
         Ok(())

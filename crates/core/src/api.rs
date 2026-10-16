@@ -459,6 +459,18 @@ impl Api {
     }
 }
 
+impl Api {
+    /// GET `url` and hand the body to `f` as a stream (no temporary file).
+    pub fn stream_url<T>(&self, url: &str, f: &mut dyn FnMut(&mut dyn Read) -> Result<T>) -> Result<T> {
+        let mut resp = self.agent.get(url).call().map_err(net)?;
+        if resp.status().as_u16() != 200 {
+            return Err(Error::Network(format!("{url}: HTTP {}", resp.status().as_u16())));
+        }
+        let mut r = resp.body_mut().with_config().limit(u64::MAX).reader();
+        f(&mut r)
+    }
+}
+
 fn copy_hashing(r: &mut dyn Read, dest: &Path, progress: &mut dyn FnMut(u64)) -> Result<(String, u64)> {
     use sha2::{Digest, Sha256};
     if let Some(p) = dest.parent() {
