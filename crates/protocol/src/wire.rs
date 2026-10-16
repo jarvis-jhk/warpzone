@@ -36,7 +36,7 @@ pub fn stun_request(txid: [u8; 12], min_len: usize) -> Vec<u8> {
     while 20 + 4 + software.len() < min_len {
         software.push(b' ');
     }
-    while software.len() % 4 != 0 {
+    while !software.len().is_multiple_of(4) {
         software.push(b' ');
     }
     let mut out = Vec::with_capacity(24 + software.len());
@@ -58,7 +58,7 @@ pub fn parse_stun_request(buf: &[u8]) -> Option<[u8; 12]> {
     let ty = u16::from_be_bytes([buf[0], buf[1]]);
     let len = u16::from_be_bytes([buf[2], buf[3]]) as usize;
     let magic = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
-    if ty != BINDING_REQUEST || magic != STUN_MAGIC || len + 20 != buf.len() || len % 4 != 0 {
+    if ty != BINDING_REQUEST || magic != STUN_MAGIC || len + 20 != buf.len() || !len.is_multiple_of(4) {
         return None;
     }
     buf[8..20].try_into().ok()

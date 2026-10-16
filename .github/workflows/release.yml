@@ -1,0 +1,107 @@
+# Tag vX.Y.Z → build every artifact, publish a GitHub release with SHA256SUMS.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl,aarch64-unknown-linux-gnu,x86_64-pc-windows-gnu
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+      - run: cargo install --locked cargo-zigbuild
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: |
+          set -eux
+          V=${GITHUB_REF_NAME#v}
+          mkdir -p dist
+          # Server: static musl binaries.
+          for t in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+            cargo zigbuild --release --target $t -p warpzone-server
+            arch=${t%%-*}
+            cp target/$t/release/warpzone-server dist/warpzone-server-$V-$arch-linux-musl
+          done
+          # C library: x86_64 glibc, aarch64 glibc 2.27 (PortMaster handhelds), mingw.
+          cargo build --release -p warpzone-capi
+          pkg() { d=libwarpzone-$V-$1; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp $2 $d/lib/; cp LICENSE-MIT LICENSE-APACHE $d/; tar -czf dist/$d.tar.gz $d; rm -rf $d; }
+          pkg x86_64-linux-gnu "target/release/libwarpzone.a target/release/libwarpzone.so"
+          cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.27 -p warpzone-capi
+          pkg aarch64-linux-gnu "target/aarch64-unknown-linux-gnu/release/libwarpzone.a target/aarch64-unknown-linux-gnu/release/libwarpzone.so"
+          cargo zigbuild --release --target x86_64-pc-windows-gnu -p warpzone-capi
+          d=libwarpzone-$V-x86_64-windows-gnu; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp target/x86_64-pc-windows-gnu/release/libwarpzone.a target/x86_64-pc-windows-gnu/release/warpzone.dll $d/lib/; (cd $d/.. && zip -qr dist/$d.zip $d); rm -rf $d
+          # CLI and launcher for Linux.
+          cargo zigbuild --release --target x86_64-unknown-linux-musl -p warpzone-cli
+          d=wz-$V-x86_64-linux; mkdir -p $d; cp target/x86_64-unknown-linux-musl/release/wz $d/; tar -czf dist/$d.tar.gz $d; rm -rf $d
+          cargo build --release -p warpzone-launcher
+          d=warpzone-launcher-$V-linux-x86_64; mkdir -p $d; cp target/release/warpzone $d/; cp packaging/linux/* $d/ 2>/dev/null || true; tar -czf dist/$d.tar.gz $d; rm -rf $d
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: Swatinem/rust-cache@v2
+      - shell: bash
+        run: |
+          set -eux
+          V=${GITHUB_REF_NAME#v}
+          mkdir -p dist
+          cargo build --release -p warpzone-capi -p warpzone-cli -p warpzone-launcher
+          d=libwarpzone-$V-x86_64-windows-msvc; mkdir -p $d/lib $d/include
+          cp crates/capi/include/warpzone.h $d/include/; cp target/release/warpzone.lib target/release/warpzone.dll target/release/warpzone.dll.lib $d/lib/ || true
+          7z a dist/$d.zip $d >/dev/null
+          d=wz-$V-windows-x86_64; mkdir -p $d; cp target/release/wz.exe $d/; 7z a dist/$d.zip $d >/dev/null
+          d=warpzone-launcher-$V-windows-x86_64; mkdir -p $d; cp target/release/warpzone.exe $d/; 7z a dist/$d.zip $d >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  publish:
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - name: Release notes from CHANGELOG.md
+        run: |
+          V=${GITHUB_REF_NAME#v}
+          awk -v v="## $V" '$0 ~ "^## " {p = index($0, v) == 1} p' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Warpzone $V" > notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "Warpzone ${GITHUB_REF_NAME#v}" --notes-file notes.md $([[ "$GITHUB_REF_NAME" == v0.* ]] && echo --prerelease)
+      - name: Container image (ghcr.io)
+        continue-on-error: true
+        run: |
+          V=${GITHUB_REF_NAME#v}
+          SHA=$(grep "warpzone-server-$V-x86_64-linux-musl$" dist/SHA256SUMS | cut -d' ' -f1)
+          echo "${{ github.token }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker build -f deploy/Dockerfile.release --build-arg WARPZONE_VERSION=$V --build-arg WARPZONE_SHA256=$SHA -t ghcr.io/${{ github.repository }}:$V -t ghcr.io/${{ github.repository }}:latest deploy
+          docker push ghcr.io/${{ github.repository }}:$V
+          docker push ghcr.io/${{ github.repository }}:latest

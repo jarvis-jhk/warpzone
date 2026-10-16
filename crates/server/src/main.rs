@@ -239,7 +239,7 @@ async fn sweeper(state: AppState) {
         state.relay.sweep(Duration::from_secs(180));
         auth::sweep(&state);
         n += 1;
-        if n % 6 == 0 {
+        if n.is_multiple_of(6) {
             state.events.sweep();
             state.limiter.sweep();
             state.reload_staff();

@@ -46,10 +46,8 @@ pub fn display(mu: f64, sigma: f64) -> i32 {
 /// Plackett-Luce update. `ranks[i]` is team `i`'s place (0 = best; ties share
 /// a value). Returns the new ratings in the same shape.
 pub fn rate(teams: &[Vec<Rating>], ranks: &[usize]) -> Vec<Vec<Rating>> {
-    let teams: Vec<Vec<Rating>> = teams
-        .iter()
-        .map(|t| t.iter().map(|r| Rating { mu: r.mu, sigma: (r.sigma * r.sigma + TAU * TAU).sqrt() }).collect())
-        .collect();
+    let teams: Vec<Vec<Rating>> =
+        teams.iter().map(|t| t.iter().map(|r| Rating { mu: r.mu, sigma: (r.sigma * r.sigma + TAU * TAU).sqrt() }).collect()).collect();
     let n = teams.len();
     let mu: Vec<f64> = teams.iter().map(|t| t.iter().map(|r| r.mu).sum()).collect();
     let s2: Vec<f64> = teams.iter().map(|t| t.iter().map(|r| r.sigma * r.sigma).sum()).collect();
@@ -188,7 +186,7 @@ fn snake(group: &[usize], teams: usize) -> Vec<Vec<usize>> {
     for (i, p) in group.iter().enumerate() {
         let round = i / teams;
         let pos = i % teams;
-        let t = if round % 2 == 0 { pos } else { teams - 1 - pos };
+        let t = if round.is_multiple_of(2) { pos } else { teams - 1 - pos };
         out[t].push(*p);
     }
     out
@@ -557,7 +555,7 @@ pub async fn run(state: AppState) {
         every.tick().await;
         tick(&state);
         n += 1;
-        if n % 30 == 0 {
+        if n.is_multiple_of(30) {
             sweep(&state);
         }
     }

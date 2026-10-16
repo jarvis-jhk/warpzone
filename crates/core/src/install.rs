@@ -81,7 +81,8 @@ fn github_digest(api: &Api, repo: &str, version: &str, asset: &str, checksums: O
             return Ok(Some((h.to_string(), "github-digest")));
         }
         if let Some(pattern) = checksums
-            && let Some(url) = assets.iter().find(|a| a["name"].as_str().is_some_and(|n| glob_match(pattern, n))).and_then(|a| a["browser_download_url"].as_str())
+            && let Some(url) =
+                assets.iter().find(|a| a["name"].as_str().is_some_and(|n| glob_match(pattern, n))).and_then(|a| a["browser_download_url"].as_str())
         {
             let text = String::from_utf8_lossy(&api.fetch(url, 1024 * 1024)?).to_string();
             for line in text.lines() {

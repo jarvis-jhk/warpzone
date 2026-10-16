@@ -325,7 +325,8 @@ impl App {
         if g.tile.is_some() {
             return;
         }
-        let (gid, name, accent, motif) = (g.desc.id.clone(), g.desc.name.clone(), g.desc.accent.clone(), g.desc.motif.clone().unwrap_or_else(|| "waves".into()));
+        let (gid, name, accent, motif) =
+            (g.desc.id.clone(), g.desc.name.clone(), g.desc.accent.clone(), g.desc.motif.clone().unwrap_or_else(|| "waves".into()));
         self.jobs.run(move || {
             let (w, h, px) = art::render(&art::Spec { id: &gid, name: &name, accent: &accent, motif: &motif }, art::Kind::Tile);
             let img = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &px);
@@ -357,10 +358,13 @@ impl App {
                 .into_iter()
                 .map(|req| {
                     let present = gamedata::present(&req, inst_dir.as_deref());
-                    let found: Vec<(Found, Check)> = gamedata::find(&req, &extra).into_iter().map(|f| {
-                        let c = gamedata::check(&req, &f.path);
-                        (f, c)
-                    }).collect();
+                    let found: Vec<(Found, Check)> = gamedata::find(&req, &extra)
+                        .into_iter()
+                        .map(|f| {
+                            let c = gamedata::check(&req, &f.path);
+                            (f, c)
+                        })
+                        .collect();
                     // Best automatic choice: verified first, then unchecked/unknown; never unsupported.
                     let chosen = found
                         .iter()
@@ -497,7 +501,8 @@ impl App {
         let mut args = Vec::new();
         if let Some(d) = &g.data {
             for s in d {
-                if !s.present && !s.req.import_args.is_empty()
+                if !s.present
+                    && !s.req.import_args.is_empty()
                     && let Some(p) = &s.chosen
                     && let Ok(Some(a)) = gamedata::hand_over(&s.req, p, g.installed.as_ref().map(|i| i.dir.as_path()))
                 {
@@ -557,13 +562,8 @@ impl App {
             }
             let mut cfg = warpzone_core::client::Config::new(game, &g.installed.as_ref().unwrap().version);
             cfg.server = self.settings.server();
-            self.lobby = Some(Lobby::start(
-                cfg,
-                g.desc.clone(),
-                g.installed.clone().unwrap(),
-                lobby::Mode::Join { room: room.into(), code, secret },
-                self.jobs_ctx(),
-            ));
+            self.lobby =
+                Some(Lobby::start(cfg, g.desc.clone(), g.installed.clone().unwrap(), lobby::Mode::Join { room: room.into(), code, secret }, self.jobs_ctx()));
             return;
         }
         // Tier ≥ 1: join with our shared identity, then the game joins as the same account.
@@ -641,7 +641,14 @@ impl App {
             Some(gid) => {
                 let Some(g) = self.games.iter().find(|g| &g.desc.id == gid) else { return };
                 let s = g.desc.steam.clone().unwrap_or_default();
-                (s.name.clone().unwrap_or(g.desc.name.clone()), gid.clone(), g.desc.accent.clone(), g.desc.motif.clone().unwrap_or("waves".into()), format!("--play {gid}"), s)
+                (
+                    s.name.clone().unwrap_or(g.desc.name.clone()),
+                    gid.clone(),
+                    g.desc.accent.clone(),
+                    g.desc.motif.clone().unwrap_or("waves".into()),
+                    format!("--play {gid}"),
+                    s,
+                )
             }
             None => ("Warpzone".to_string(), "warpzone".to_string(), "#7c5cff".to_string(), "waves".to_string(), String::new(), Default::default()),
         };
@@ -669,7 +676,8 @@ impl App {
                         None => {
                             let (w, h, px) = art::render(&art::Spec { id: &id, name: &name, accent: &accent, motif: &motif }, kind);
                             let mut out = std::io::Cursor::new(Vec::new());
-                            image::write_buffer_with_format(&mut out, &px, w, h, image::ColorType::Rgba8, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+                            image::write_buffer_with_format(&mut out, &px, w, h, image::ColorType::Rgba8, image::ImageFormat::Png)
+                                .map_err(|e| e.to_string())?;
                             out.into_inner()
                         }
                     };
@@ -796,7 +804,13 @@ impl App {
         }
         if let Some((game, room)) = launch {
             self.queue = None;
-            let args = self.games.iter().find(|g| g.desc.id == game).and_then(|g| g.desc.launch.as_ref()).map(|l| l.join.iter().map(|a| a.replace("{room}", &room)).collect()).unwrap_or_default();
+            let args = self
+                .games
+                .iter()
+                .find(|g| g.desc.id == game)
+                .and_then(|g| g.desc.launch.as_ref())
+                .map(|l| l.join.iter().map(|a| a.replace("{room}", &room)).collect())
+                .unwrap_or_default();
             system::notify("Match found", "Starting the game…");
             self.launch_with(&game, args);
         }
@@ -901,7 +915,10 @@ impl App {
         });
         ui.add_space(6.0);
         if self.games.is_empty() {
-            ui.label(RichText::new(if self.online == Some(false) { "Cannot reach the Warpzone server. Installed games still work." } else { "Loading games…" }).color(MUTED));
+            ui.label(
+                RichText::new(if self.online == Some(false) { "Cannot reach the Warpzone server. Installed games still work." } else { "Loading games…" })
+                    .color(MUTED),
+            );
         }
         let avail = ui.available_width();
         let cols = ((avail + 16.0) / (330.0 + 16.0)).floor().max(1.0) as usize;
@@ -931,82 +948,93 @@ impl App {
         let hidden = self.settings.hidden_games.contains(&id.to_string());
         let mut open = false;
         let mut act: Option<&str> = None;
-        Frame::new().fill(PANEL).stroke(Stroke::new(1.0, LINE)).corner_radius(CornerRadius::same(14)).show(ui, |ui| ui.vertical(|ui| {
-            ui.set_width(w);
-            let g = &self.games[gi];
-            let h = w * 430.0 / 920.0;
-            let resp = match &g.tile {
-                Some(t) => ui.add(egui::Image::new(t).fit_to_exact_size(Vec2::new(w, h)).corner_radius(CornerRadius { nw: 14, ne: 14, sw: 0, se: 0 }).sense(egui::Sense::click())),
-                None => {
-                    let (r, resp) = ui.allocate_exact_size(Vec2::new(w, h), egui::Sense::click());
-                    ui.painter().rect_filled(r, CornerRadius::same(14), Color32::from_rgb(30, 30, 52));
-                    resp
+        Frame::new().fill(PANEL).stroke(Stroke::new(1.0, LINE)).corner_radius(CornerRadius::same(14)).show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.set_width(w);
+                let g = &self.games[gi];
+                let h = w * 430.0 / 920.0;
+                let resp = match &g.tile {
+                    Some(t) => ui.add(
+                        egui::Image::new(t)
+                            .fit_to_exact_size(Vec2::new(w, h))
+                            .corner_radius(CornerRadius { nw: 14, ne: 14, sw: 0, se: 0 })
+                            .sense(egui::Sense::click()),
+                    ),
+                    None => {
+                        let (r, resp) = ui.allocate_exact_size(Vec2::new(w, h), egui::Sense::click());
+                        ui.painter().rect_filled(r, CornerRadius::same(14), Color32::from_rgb(30, 30, 52));
+                        resp
+                    }
+                };
+                if resp.clicked() {
+                    open = true;
                 }
-            };
-            if resp.clicked() {
-                open = true;
-            }
-            Frame::new().inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let status = match (&g.installed, &primary) {
-                        (_, Primary::Busy(b)) => b.clone(),
-                        (Some(i), Primary::Update) => format!("{} - update ready", i.version),
-                        (Some(i), _) => format!("Installed {}", i.version),
-                        (None, Primary::FindData) => "Needs your game files".into(),
-                        (None, Primary::Unavailable(s)) => s.clone(),
-                        (None, _) => g.release.as_ref().map(|r| format!("{} · {}", r.version, install::asset_for(r, install::platform()).map(|a| mb(a.1.size)).unwrap_or_default())).unwrap_or_default(),
-                    };
-                    ui.label(RichText::new(status).color(MUTED).size(13.0));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.menu_button(RichText::new("...").size(15.0), |ui| {
-                            if ui.button("Open game page").clicked() {
-                                open = true;
-                                ui.close();
-                            }
-                            if ui.button(if hidden { "Show in library" } else { "Hide from library" }).clicked() {
-                                act = Some("hide");
-                                ui.close();
+                Frame::new().inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let status = match (&g.installed, &primary) {
+                            (_, Primary::Busy(b)) => b.clone(),
+                            (Some(i), Primary::Update) => format!("{} - update ready", i.version),
+                            (Some(i), _) => format!("Installed {}", i.version),
+                            (None, Primary::FindData) => "Needs your game files".into(),
+                            (None, Primary::Unavailable(s)) => s.clone(),
+                            (None, _) => g
+                                .release
+                                .as_ref()
+                                .map(|r| format!("{} · {}", r.version, install::asset_for(r, install::platform()).map(|a| mb(a.1.size)).unwrap_or_default()))
+                                .unwrap_or_default(),
+                        };
+                        ui.label(RichText::new(status).color(MUTED).size(13.0));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.menu_button(RichText::new("...").size(15.0), |ui| {
+                                if ui.button("Open game page").clicked() {
+                                    open = true;
+                                    ui.close();
+                                }
+                                if ui.button(if hidden { "Show in library" } else { "Hide from library" }).clicked() {
+                                    act = Some("hide");
+                                    ui.close();
+                                }
+                            });
+                            match &primary {
+                                Primary::Play => {
+                                    if primary_button(ui, "Play", false).clicked() {
+                                        act = Some("play");
+                                    }
+                                }
+                                Primary::Install => {
+                                    if primary_button(ui, "Install", false).clicked() {
+                                        act = Some("install");
+                                    }
+                                }
+                                Primary::Update => {
+                                    if primary_button(ui, "Update", false).clicked() {
+                                        act = Some("install");
+                                    }
+                                }
+                                Primary::FindData => {
+                                    if ui.button("Find game files").clicked() {
+                                        open = true;
+                                    }
+                                }
+                                Primary::Busy(_) => {
+                                    if let Some((d, t)) = g.progress
+                                        && t > 0
+                                    {
+                                        ui.add(egui::ProgressBar::new(d as f32 / t as f32).desired_width(110.0));
+                                    } else {
+                                        ui.spinner();
+                                    }
+                                }
+                                Primary::Unavailable(_) => {}
                             }
                         });
-                        match &primary {
-                            Primary::Play => {
-                                if primary_button(ui, "Play", false).clicked() {
-                                    act = Some("play");
-                                }
-                            }
-                            Primary::Install => {
-                                if primary_button(ui, "Install", false).clicked() {
-                                    act = Some("install");
-                                }
-                            }
-                            Primary::Update => {
-                                if primary_button(ui, "Update", false).clicked() {
-                                    act = Some("install");
-                                }
-                            }
-                            Primary::FindData => {
-                                if ui.button("Find game files").clicked() {
-                                    open = true;
-                                }
-                            }
-                            Primary::Busy(_) => {
-                                if let Some((d, t)) = g.progress
-                                    && t > 0
-                                {
-                                    ui.add(egui::ProgressBar::new(d as f32 / t as f32).desired_width(110.0));
-                                } else {
-                                    ui.spinner();
-                                }
-                            }
-                            Primary::Unavailable(_) => {}
-                        }
                     });
+                    if let Some(e) = &g.error {
+                        ui.label(RichText::new(e).color(WARN).size(12.0));
+                    }
                 });
-                if let Some(e) = &g.error {
-                    ui.label(RichText::new(e).color(WARN).size(12.0));
-                }
-            });
-        }));
+            })
+        });
         if open {
             self.page = Some(id.to_string());
         }
@@ -1140,7 +1168,9 @@ impl App {
                             });
                         }
                         if !s.present && s.found.is_empty() {
-                            ui.label(RichText::new("Not found in Steam, GOG, Heroic, Lutris, Wine, your Downloads folder or on discs.").color(MUTED).size(13.5));
+                            ui.label(
+                                RichText::new("Not found in Steam, GOG, Heroic, Lutris, Wine, your Downloads folder or on discs.").color(MUTED).size(13.5),
+                            );
                         }
                         ui.horizontal_wrapped(|ui| {
                             if ui.button("Search again").clicked() {
@@ -1204,22 +1234,26 @@ impl App {
                 ui.label(RichText::new("Online").font(display(20.0)));
                 let can_host = g.installed.is_some() && (g.desc.tier >= 2 || g.desc.tier0.is_some());
                 if can_host {
-                    egui::ComboBox::from_id_salt("vis").selected_text(match self.host_visibility {
-                        Visibility::Public => "Public",
-                        Visibility::Unlisted => "Private (code/link)",
-                    }).show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.host_visibility, Visibility::Public, "Public");
-                        ui.selectable_value(&mut self.host_visibility, Visibility::Unlisted, "Private (code/link)");
-                    });
-                    egui::ComboBox::from_id_salt("entry").selected_text(match self.host_entry {
-                        Entry::Open => "Anyone joins",
-                        Entry::Code => "Code required",
-                        Entry::Approve => "I approve joiners",
-                    }).show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.host_entry, Entry::Open, "Anyone joins");
-                        ui.selectable_value(&mut self.host_entry, Entry::Code, "Code required");
-                        ui.selectable_value(&mut self.host_entry, Entry::Approve, "I approve joiners");
-                    });
+                    egui::ComboBox::from_id_salt("vis")
+                        .selected_text(match self.host_visibility {
+                            Visibility::Public => "Public",
+                            Visibility::Unlisted => "Private (code/link)",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.host_visibility, Visibility::Public, "Public");
+                            ui.selectable_value(&mut self.host_visibility, Visibility::Unlisted, "Private (code/link)");
+                        });
+                    egui::ComboBox::from_id_salt("entry")
+                        .selected_text(match self.host_entry {
+                            Entry::Open => "Anyone joins",
+                            Entry::Code => "Code required",
+                            Entry::Approve => "I approve joiners",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.host_entry, Entry::Open, "Anyone joins");
+                            ui.selectable_value(&mut self.host_entry, Entry::Code, "Code required");
+                            ui.selectable_value(&mut self.host_entry, Entry::Approve, "I approve joiners");
+                        });
                     if ui.button("Host a game").clicked() {
                         act = Some("host".into());
                     }
@@ -1340,7 +1374,8 @@ impl App {
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.label("Game:");
-            let current = self.rooms_game.clone().and_then(|g| self.games.iter().find(|x| x.desc.id == g).map(|x| x.desc.name.clone())).unwrap_or("All games".into());
+            let current =
+                self.rooms_game.clone().and_then(|g| self.games.iter().find(|x| x.desc.id == g).map(|x| x.desc.name.clone())).unwrap_or("All games".into());
             let mut changed = false;
             egui::ComboBox::from_id_salt("roomgame").selected_text(current).show_ui(ui, |ui| {
                 changed |= ui.selectable_value(&mut self.rooms_game, None, "All games").clicked();
@@ -1394,7 +1429,12 @@ impl App {
 
     fn ladder_tab(&mut self, ui: &mut egui::Ui) {
         ui.heading("Ladder");
-        ui.label(RichText::new("Ranked play is optional. Seasons follow the calendar (quarterly unless a game says otherwise); ratings carry over with a soft reset.").color(MUTED));
+        ui.label(
+            RichText::new(
+                "Ranked play is optional. Seasons follow the calendar (quarterly unless a game says otherwise); ratings carry over with a soft reset.",
+            )
+            .color(MUTED),
+        );
         let mut load: Option<(String, String)> = None;
         ui.horizontal_wrapped(|ui| {
             for g in &self.games {
@@ -1431,9 +1471,11 @@ impl App {
                 }
             }
             None => {
-                if tier >= 2 && installed.is_some() {
+                if tier >= 2
+                    && let Some(inst) = &installed
+                {
                     if primary_button(ui, "Find a match", false).clicked() {
-                        let mut cfg = warpzone_core::client::Config::new(&gid, &installed.as_ref().unwrap().version);
+                        let mut cfg = warpzone_core::client::Config::new(&gid, &inst.version);
                         cfg.server = self.settings.server();
                         cfg.auto_join_matches = false;
                         if let Ok(c) = warpzone_core::client::Client::new(cfg) {
@@ -1448,7 +1490,10 @@ impl App {
         });
         if let Some(s) = &self.standings {
             card(ui, |ui| {
-                ui.label(RichText::new(format!("Season {}{}", s.season, if s.placing > 0 { format!(" · {} still placing", s.placing) } else { String::new() })).color(MUTED));
+                ui.label(
+                    RichText::new(format!("Season {}{}", s.season, if s.placing > 0 { format!(" · {} still placing", s.placing) } else { String::new() }))
+                        .color(MUTED),
+                );
                 if s.standings.is_empty() {
                     ui.label("Nobody has finished their placement matches this season yet.");
                 }
@@ -1481,7 +1526,8 @@ impl App {
             load = true;
         }
         ui.horizontal(|ui| {
-            let current = self.mods_game.clone().and_then(|g| self.games.iter().find(|x| x.desc.id == g).map(|x| x.desc.name.clone())).unwrap_or("Choose a game".into());
+            let current =
+                self.mods_game.clone().and_then(|g| self.games.iter().find(|x| x.desc.id == g).map(|x| x.desc.name.clone())).unwrap_or("Choose a game".into());
             egui::ComboBox::from_id_salt("modgame").selected_text(current).show_ui(ui, |ui| {
                 for g in self.games.iter().filter(|g| g.desc.mods.is_some()) {
                     load |= ui.selectable_value(&mut self.mods_game, Some(g.desc.id.clone()), &g.desc.name).clicked();
@@ -1520,7 +1566,11 @@ impl App {
                                 if ui.link(RichText::new(&m.title).strong()).clicked() {
                                     detail = Some(m.name.clone());
                                 }
-                                ui.label(RichText::new(format!("{} · {} · by {} · {} downloads", m.latest, m.category, m.author, m.downloads)).color(MUTED).size(12.5));
+                                ui.label(
+                                    RichText::new(format!("{} · {} · by {} · {} downloads", m.latest, m.category, m.author, m.downloads))
+                                        .color(MUTED)
+                                        .size(12.5),
+                                );
                             });
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 let on = active.as_ref().is_some_and(|l| l.mods.iter().any(|e| e.name == m.name));
@@ -1561,7 +1611,15 @@ impl App {
                     }
                     ui.label(&d.summary.description);
                     for v in d.versions.iter().take(5) {
-                        ui.label(RichText::new(format!("{} — game {} — {}", v.version, v.game_version, if v.dependencies.is_empty() { "no dependencies".into() } else { v.dependencies.join(", ") })).size(13.0));
+                        ui.label(
+                            RichText::new(format!(
+                                "{} — game {} — {}",
+                                v.version,
+                                v.game_version,
+                                if v.dependencies.is_empty() { "no dependencies".into() } else { v.dependencies.join(", ") }
+                            ))
+                            .size(13.0),
+                        );
                     }
                 });
             }
@@ -1585,7 +1643,12 @@ impl App {
             } else {
                 want.retain(|n| *n != name);
             }
-            let version = self.games.iter().find(|g| g.desc.id == gid).and_then(|g| g.installed.as_ref().map(|i| i.version.clone()).or(g.release.as_ref().map(|r| r.version.clone()))).unwrap_or("0.0.0".into());
+            let version = self
+                .games
+                .iter()
+                .find(|g| g.desc.id == gid)
+                .and_then(|g| g.installed.as_ref().map(|i| i.version.clone()).or(g.release.as_ref().map(|r| r.version.clone())))
+                .unwrap_or("0.0.0".into());
             let extract = self.games.iter().find(|g| g.desc.id == gid).and_then(|g| g.desc.mods.as_ref()).is_some_and(|m| m.install == "extract");
             let api = self.api.clone();
             let g = gid.clone();
@@ -1645,7 +1708,17 @@ impl App {
             for p in &q.pending {
                 card(ui, |ui| {
                     ui.label(RichText::new(format!("{} — {} {}", p.title, p.name, p.version)).strong());
-                    ui.label(RichText::new(format!("{} · {} · by {} · {} KiB{}", p.game, p.category, p.author, p.size / 1024, if p.contains_code { " · may contain code" } else { "" })).color(MUTED));
+                    ui.label(
+                        RichText::new(format!(
+                            "{} · {} · by {} · {} KiB{}",
+                            p.game,
+                            p.category,
+                            p.author,
+                            p.size / 1024,
+                            if p.contains_code { " · may contain code" } else { "" }
+                        ))
+                        .color(MUTED),
+                    );
                     for n in &p.notes {
                         ui.label(RichText::new(format!("{}: {}", n.role, n.text)).size(13.0));
                     }
@@ -2049,9 +2122,14 @@ impl eframe::App for App {
         if !self.toasts.is_empty() {
             egui::Area::new(egui::Id::unique("toasts")).anchor(egui::Align2::RIGHT_BOTTOM, Vec2::new(-18.0, -18.0)).show(&ctx, |ui| {
                 for (t, _) in &self.toasts {
-                    Frame::new().fill(Color32::from_rgb(36, 32, 70)).stroke(Stroke::new(1.0, ACCENT)).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(10)).show(ui, |ui| {
-                        ui.label(RichText::new(t).color(Color32::WHITE));
-                    });
+                    Frame::new()
+                        .fill(Color32::from_rgb(36, 32, 70))
+                        .stroke(Stroke::new(1.0, ACCENT))
+                        .corner_radius(CornerRadius::same(10))
+                        .inner_margin(Margin::same(10))
+                        .show(ui, |ui| {
+                            ui.label(RichText::new(t).color(Color32::WHITE));
+                        });
                     ui.add_space(6.0);
                 }
             });

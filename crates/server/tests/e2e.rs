@@ -5,7 +5,7 @@
 
 use std::io::Write;
 use std::net::{TcpListener, UdpSocket};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Child, Command};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -76,12 +76,8 @@ fn start() -> Server {
         ),
     )
     .unwrap();
-    let child = Command::new(env!("CARGO_BIN_EXE_warpzone-server"))
-        .arg("--config")
-        .arg(dir.path().join("server.toml"))
-        .env("WARPZONE_LOG", "warn")
-        .spawn()
-        .unwrap();
+    let child =
+        Command::new(env!("CARGO_BIN_EXE_warpzone-server")).arg("--config").arg(dir.path().join("server.toml")).env("WARPZONE_LOG", "warn").spawn().unwrap();
     let s = Server { child, url, _dir: dir, moderator };
     let t = Instant::now();
     while t.elapsed() < Duration::from_secs(10) {
@@ -379,7 +375,7 @@ fn mods_moderation_resolve_sync() {
     let lock = anon.resolve("demo", "1.2.0", vec!["cave-level".into()]).unwrap();
     assert_eq!(lock.order, vec!["cave-tiles", "cave-level"]);
     assert_eq!(anon.lockfile("demo", &lock.hash).unwrap(), lock);
-    let store = warpzone_core::modstore::ModStore::at(PathBuf::from(tmp.path().join("store")), "demo", true);
+    let store = warpzone_core::modstore::ModStore::at(tmp.path().join("store"), "demo", true);
     let paths = store.sync(&anon, &lock, &mut |_, _| {}).unwrap();
     assert!(paths[0].join("tiles/a.png").exists());
     assert!(paths[1].join("level.json").exists());

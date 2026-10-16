@@ -153,9 +153,7 @@ impl State {
         let db = self.db();
         keys.iter()
             .map(|k| {
-                db.query_row("SELECT account FROM keys WHERE key = ?1", [k], |r| r.get::<_, i64>(0))
-                    .map(principal_account)
-                    .unwrap_or_else(|_| principal_key(k))
+                db.query_row("SELECT account FROM keys WHERE key = ?1", [k], |r| r.get::<_, i64>(0)).map(principal_account).unwrap_or_else(|_| principal_key(k))
             })
             .collect()
     }

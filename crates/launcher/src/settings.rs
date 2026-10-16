@@ -39,10 +39,7 @@ impl Default for Settings {
 
 impl Settings {
     pub fn load() -> Settings {
-        std::fs::read_to_string(warpzone_core::paths::launcher_settings())
-            .ok()
-            .and_then(|t| serde_json::from_str(&t).ok())
-            .unwrap_or_default()
+        std::fs::read_to_string(warpzone_core::paths::launcher_settings()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
     }
 
     pub fn save(&self) {

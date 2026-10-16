@@ -104,11 +104,11 @@ impl Tunnel {
             }
         }
         for (dst, f) in out {
-            if let Some(peer) = self.route.get(&dst) {
-                if f.len() <= warpzone_protocol::MAX_DATAGRAM {
-                    client.send(*peer, TUNNEL_CHANNEL, &f, false);
-                    self.frames_out += 1;
-                }
+            if let Some(peer) = self.route.get(&dst)
+                && f.len() <= warpzone_protocol::MAX_DATAGRAM
+            {
+                client.send(*peer, TUNNEL_CHANNEL, &f, false);
+                self.frames_out += 1;
             }
         }
     }

@@ -44,16 +44,11 @@ pub async fn register(
     state.limiter.check(&format!("register:{ip}"), state.cfg.limits.registrations_per_ip_per_day, Duration::from_secs(86_400))?;
     let db = state.db();
     let t = now();
-    let taken: Option<i64> = db
-        .query_row("SELECT id FROM accounts WHERE username_lc = ?1", [req.username.to_ascii_lowercase()], |r| r.get(0))
-        .optional()?;
+    let taken: Option<i64> = db.query_row("SELECT id FROM accounts WHERE username_lc = ?1", [req.username.to_ascii_lowercase()], |r| r.get(0)).optional()?;
     if taken.is_some() {
         return Err(ApiError::conflict("that username is taken"));
     }
-    db.execute(
-        "INSERT INTO accounts (username, username_lc, created) VALUES (?1, ?2, ?3)",
-        params![req.username, req.username.to_ascii_lowercase(), t],
-    )?;
+    db.execute("INSERT INTO accounts (username, username_lc, created) VALUES (?1, ?2, ?3)", params![req.username, req.username.to_ascii_lowercase(), t])?;
     let id = db.last_insert_rowid();
     db.execute("INSERT INTO keys (key, account, added) VALUES (?1, ?2, ?3)", params![auth.key, id, t])?;
     log::info!("account {id} registered");
@@ -162,12 +157,7 @@ pub struct Rename {
 }
 
 /// Moderator: force a rename (offensive or impersonating names).
-pub async fn force_rename(
-    State(state): State<AppState>,
-    auth: Auth,
-    Path(old): Path<String>,
-    Json(req): Json<Rename>,
-) -> ApiResult<serde_json::Value> {
+pub async fn force_rename(State(state): State<AppState>, auth: Auth, Path(old): Path<String>, Json(req): Json<Rename>) -> ApiResult<serde_json::Value> {
     if !auth.is_moderator() {
         return Err(ApiError::forbidden("moderators only"));
     }

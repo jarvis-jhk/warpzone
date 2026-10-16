@@ -30,7 +30,9 @@ fn render_art(dir: &std::path::Path) {
         std::process::exit(1)
     });
     for d in games {
-        for (k, n) in [(art::Kind::Tile, "tile"), (art::Kind::Capsule, "capsule"), (art::Kind::Hero, "hero"), (art::Kind::Logo, "logo"), (art::Kind::Icon, "icon")] {
+        for (k, n) in
+            [(art::Kind::Tile, "tile"), (art::Kind::Capsule, "capsule"), (art::Kind::Hero, "hero"), (art::Kind::Logo, "logo"), (art::Kind::Icon, "icon")]
+        {
             let name = d.steam.as_ref().and_then(|s| s.name.clone()).unwrap_or(d.name.clone());
             let (w, h, px) = art::render(&art::Spec { id: &d.id, name: &name, accent: &d.accent, motif: d.motif.as_deref().unwrap_or("waves") }, k);
             art::save_png(&dir.join(format!("{}-{n}.png", d.id)), w, h, &px).unwrap();

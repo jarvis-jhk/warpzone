@@ -32,6 +32,11 @@ ed25519-dalek = "2"
 thiserror = "2"
 log = "0.4"
 
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+field_reassign_with_default = "allow"
+
 [profile.release]
 opt-level = "s"
 lto = true

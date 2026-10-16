@@ -49,14 +49,7 @@ impl Api {
             .user_agent(format!("warpzone-core/{}", env!("CARGO_PKG_VERSION")))
             .build()
             .into();
-        Api {
-            base: base.trim_end_matches('/').to_string(),
-            agent,
-            identity,
-            token: Mutex::new(None),
-            info: Mutex::new(None),
-            login: Mutex::new(None),
-        }
+        Api { base: base.trim_end_matches('/').to_string(), agent, identity, token: Mutex::new(None), info: Mutex::new(None), login: Mutex::new(None) }
     }
 
     pub fn base(&self) -> &str {
@@ -368,13 +361,8 @@ impl Api {
     pub fn upload_mod(&self, game: &str, manifest: &Manifest, archive: &Path) -> Result<Uploaded> {
         let data = std::fs::read(archive)?;
         let boundary = format!("warpzone{}", hex::encode(rand::random::<[u8; 12]>()));
-        let filename: String = archive
-            .file_name()
-            .and_then(|f| f.to_str())
-            .unwrap_or("mod.zip")
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric() || "._-".contains(*c))
-            .collect();
+        let filename: String =
+            archive.file_name().and_then(|f| f.to_str()).unwrap_or("mod.zip").chars().filter(|c| c.is_ascii_alphanumeric() || "._-".contains(*c)).collect();
         let mut body = Vec::with_capacity(data.len() + 1024);
         write!(body, "--{boundary}\r\nContent-Disposition: form-data; name=\"manifest\"\r\nContent-Type: application/json\r\n\r\n")?;
         body.extend_from_slice(&serde_json::to_vec(manifest).unwrap());

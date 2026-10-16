@@ -16,3 +16,6 @@ warpzone-core.workspace = true
 warpzone-protocol.workspace = true
 serde = { workspace = true }
 serde_json.workspace = true
+
+[lints]
+workspace = true

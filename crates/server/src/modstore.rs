@@ -169,10 +169,9 @@ fn store_upload(
     )?;
     drop(db);
     for p in state.staff_principals() {
-        state.events.push(
-            &p,
-            ServerEvent::ModSubmitted { game: game.into(), name: m.name.clone(), version: version.to_string(), author: acc.username.clone() },
-        );
+        state
+            .events
+            .push(&p, ServerEvent::ModSubmitted { game: game.into(), name: m.name.clone(), version: version.to_string(), author: acc.username.clone() });
     }
     state.notify(format!("Mod waiting for review: {game}/{} {} by {} ({} KiB)", m.name, version, acc.username, size / 1024));
     log::info!("mod upload {game}/{} {version} by account {}", m.name, acc.id);
@@ -273,9 +272,8 @@ pub fn detail_inner(state: &AppState, game: &str, name: &str, viewer: Option<&Au
         .optional()?;
     let (mut summary, license, homepage, owner) = row.ok_or_else(|| ApiError::not_found("no such mod"))?;
     let privileged = viewer.is_some_and(|a| a.is_staff() || (owner.is_some() && a.account.as_ref().map(|x| x.id) == owner));
-    let mut st = db.prepare(
-        "SELECT version, game_version, deps, sha256, size, state, yanked, submitted, reason FROM mod_versions WHERE game=?1 AND name=?2",
-    )?;
+    let mut st =
+        db.prepare("SELECT version, game_version, deps, sha256, size, state, yanked, submitted, reason FROM mod_versions WHERE game=?1 AND name=?2")?;
     let mut versions: Vec<ModVersionInfo> = st
         .query_map(params![game, name], |r| {
             Ok(ModVersionInfo {
@@ -357,16 +355,12 @@ pub async fn yank(
 ) -> ApiResult<serde_json::Value> {
     bad_name(&game, &name)?;
     let db = state.db();
-    let owner: Option<i64> =
-        db.query_row("SELECT owner FROM mods WHERE game=?1 AND name=?2", params![game, name], |r| r.get(0)).optional()?.flatten();
+    let owner: Option<i64> = db.query_row("SELECT owner FROM mods WHERE game=?1 AND name=?2", params![game, name], |r| r.get(0)).optional()?.flatten();
     let mine = owner.is_some() && auth.account.as_ref().map(|a| a.id) == owner;
     if !mine && !auth.is_moderator() {
         return Err(ApiError::forbidden("only the author or a moderator can yank"));
     }
-    let n = db.execute(
-        "UPDATE mod_versions SET yanked = ?1 WHERE game=?2 AND name=?3 AND version=?4",
-        params![req.yanked as i64, game, name, version],
-    )?;
+    let n = db.execute("UPDATE mod_versions SET yanked = ?1 WHERE game=?2 AND name=?3 AND version=?4", params![req.yanked as i64, game, name, version])?;
     if n == 0 {
         return Err(ApiError::not_found("no such mod version"));
     }
@@ -430,16 +424,14 @@ pub async fn resolve(State(state): State<AppState>, Path(game): Path<String>, Js
     let wanted = req.mods.iter().map(|m| Dependency::parse(m)).collect::<Result<Vec<_>, _>>().map_err(|e| ApiError::bad(e.to_string()))?;
     let db = state.db();
     let cat = catalog(&db, &game)?;
-    let lock = mods::resolve(&cat, &wanted, &game, &gv).map_err(|e| ApiError::new(axum::http::StatusCode::UNPROCESSABLE_ENTITY, "unresolvable", e.to_string()))?;
+    let lock =
+        mods::resolve(&cat, &wanted, &game, &gv).map_err(|e| ApiError::new(axum::http::StatusCode::UNPROCESSABLE_ENTITY, "unresolvable", e.to_string()))?;
     store_lockfile(&db, &lock)?;
     Ok(Json(lock))
 }
 
 pub async fn get_lockfile(State(state): State<AppState>, Path((game, hash)): Path<(String, String)>) -> ApiResult<Lockfile> {
-    let body: Option<String> = state
-        .db()
-        .query_row("SELECT body FROM lockfiles WHERE game=?1 AND hash=?2", params![game, hash], |r| r.get(0))
-        .optional()?;
+    let body: Option<String> = state.db().query_row("SELECT body FROM lockfiles WHERE game=?1 AND hash=?2", params![game, hash], |r| r.get(0)).optional()?;
     let body = body.ok_or_else(|| ApiError::not_found("unknown lockfile"))?;
     Ok(Json(serde_json::from_str(&body).map_err(ApiError::internal)?))
 }
@@ -571,11 +563,9 @@ pub async fn decide(
     }
     let db = state.db();
     let row: Option<(String, String, String)> = db
-        .query_row(
-            "SELECT state, manifest, sha256 FROM mod_versions WHERE game=?1 AND name=?2 AND version=?3",
-            params![game, name, version],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        )
+        .query_row("SELECT state, manifest, sha256 FROM mod_versions WHERE game=?1 AND name=?2 AND version=?3", params![game, name, version], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })
         .optional()?;
     let (old, manifest, sha) = row.ok_or_else(|| ApiError::not_found("no such mod version"))?;
     db.execute(
@@ -595,10 +585,7 @@ pub async fn decide(
         }
     }
     if new_state == "rejected" {
-        let still_used: bool = db
-            .query_row("SELECT 1 FROM mod_versions WHERE sha256=?1 AND state != 'rejected'", [&sha], |_| Ok(()))
-            .optional()?
-            .is_some();
+        let still_used: bool = db.query_row("SELECT 1 FROM mod_versions WHERE sha256=?1 AND state != 'rejected'", [&sha], |_| Ok(())).optional()?.is_some();
         if !still_used {
             let _ = std::fs::remove_file(blob_path(&state, &sha));
         }
@@ -608,7 +595,13 @@ pub async fn decide(
     if let Some(o) = owner {
         state.events.push(
             &principal_account(o),
-            ServerEvent::ModDecision { game: game.clone(), name: name.clone(), version: version.clone(), decision: req.decision.clone(), reason: req.reason.clone() },
+            ServerEvent::ModDecision {
+                game: game.clone(),
+                name: name.clone(),
+                version: version.clone(),
+                decision: req.decision.clone(),
+                reason: req.reason.clone(),
+            },
         );
     }
     log::info!("mod {game}/{name} {version}: {old} -> {new_state}");

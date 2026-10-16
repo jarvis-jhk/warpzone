@@ -1,0 +1,36 @@
+# Warpzone server. See docs/self-hosting.md.
+#
+#   cp config/server.example.toml config/server.toml   # edit public_url, udp_public
+#   cp config/staff.example.toml  config/staff.toml    # your moderator key
+#   cp -r ../games config/games                         # or your own descriptors
+#   mkdir -p data && sudo chown 10001:10001 data
+#   docker compose up -d --build
+services:
+  warpzone:
+    build:
+      context: .
+      dockerfile: ${WARPZONE_DOCKERFILE:-Dockerfile.release}
+      args:
+        WARPZONE_VERSION: ${WARPZONE_VERSION:-0.1.0}
+        WARPZONE_SHA256: ${WARPZONE_SHA256:-}
+    image: warpzone-server:${WARPZONE_VERSION:-local}
+    # Host networking on purpose: STUN must see each client's real address.
+    # Docker's port publishing (docker-proxy, IPv6 in particular) would replace
+    # it with the proxy's, and NAT traversal would silently fail.
+    network_mode: host
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    cpus: 1.0
+    environment:
+      - WARPZONE_LOG=info
+    volumes:
+      - ./config:/config:ro
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2998/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

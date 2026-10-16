@@ -59,9 +59,7 @@ impl Ticket {
         let sig: [u8; 64] = sig.try_into().map_err(|_| TicketError::Malformed)?;
         let mut msg = DOMAIN.to_vec();
         msg.extend_from_slice(&json);
-        server_key
-            .verify(&msg, &Signature::from_bytes(&sig))
-            .map_err(|_| TicketError::BadSignature)?;
+        server_key.verify(&msg, &Signature::from_bytes(&sig)).map_err(|_| TicketError::BadSignature)?;
         let t: Ticket = serde_json::from_slice(&json).map_err(|_| TicketError::Malformed)?;
         if t.expires < now {
             return Err(TicketError::Expired);
@@ -91,17 +89,7 @@ mod tests {
     }
 
     fn ticket() -> Ticket {
-        Ticket {
-            v: 1,
-            room: "r".into(),
-            game: "g".into(),
-            account: 1,
-            username: "a".into(),
-            key: "00".repeat(32),
-            role: Role::Guest,
-            issued: 10,
-            expires: 100,
-        }
+        Ticket { v: 1, room: "r".into(), game: "g".into(), account: 1, username: "a".into(), key: "00".repeat(32), role: Role::Guest, issued: 10, expires: 100 }
     }
 
     #[test]

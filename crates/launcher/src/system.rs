@@ -92,7 +92,10 @@ pub fn set_autostart(on: bool) -> std::io::Result<()> {
         std::fs::create_dir_all(f.parent().unwrap())?;
         std::fs::write(
             &f,
-            format!("[Desktop Entry]\nType=Application\nName=Warpzone (background)\nExec=\"{}\" --background\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n", exe()),
+            format!(
+                "[Desktop Entry]\nType=Application\nName=Warpzone (background)\nExec=\"{}\" --background\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n",
+                exe()
+            ),
         )?;
     } else if f.exists() {
         std::fs::remove_file(f)?;

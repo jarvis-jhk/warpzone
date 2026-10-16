@@ -427,10 +427,10 @@ impl GameDescriptor {
                 return bad(format!("bad leaderboard {}", b.id));
             }
         }
-        if let Some(t) = &self.tier0 {
-            if !matches!(t.transport.as_str(), "udp" | "tcp") {
-                return bad("tier0.transport must be udp or tcp".into());
-            }
+        if let Some(t) = &self.tier0
+            && !matches!(t.transport.as_str(), "udp" | "tcp")
+        {
+            return bad("tier0.transport must be udp or tcp".into());
         }
         for d in &self.data {
             if !valid_slug(&d.id) || d.files.is_empty() {

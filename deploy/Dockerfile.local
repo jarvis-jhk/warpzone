@@ -1,0 +1,9 @@
+# Warpzone server from a binary you built yourself:
+#   cargo zigbuild --release --target x86_64-unknown-linux-musl -p warpzone-server
+#   cp target/x86_64-unknown-linux-musl/release/warpzone-server deploy/bin/
+#   WARPZONE_DOCKERFILE=Dockerfile.local docker compose up -d --build
+FROM alpine:3.22
+COPY bin/warpzone-server /usr/local/bin/warpzone-server
+RUN chmod 0755 /usr/local/bin/warpzone-server && adduser -D -H -u 10001 warpzone
+USER 10001
+ENTRYPOINT ["/usr/local/bin/warpzone-server", "--config", "/config/server.toml"]

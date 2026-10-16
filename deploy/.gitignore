@@ -1,0 +1,6 @@
+bin/
+data/
+config/server.toml
+config/staff.toml
+config/games/
+.env

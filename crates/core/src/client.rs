@@ -67,36 +67,98 @@ pub struct HostOptions {
 #[derive(Debug, Clone)]
 pub enum Event {
     /// Logged in. `account` is `None` until a username is registered.
-    LoggedIn { account: Option<Account>, roles: Vec<String> },
+    LoggedIn {
+        account: Option<Account>,
+        roles: Vec<String>,
+    },
     Registered(Account),
-    RoomHosted { room: RoomInfo, code: Option<String>, invite: String },
+    RoomHosted {
+        room: RoomInfo,
+        code: Option<String>,
+        invite: String,
+    },
     /// We are in a room (as host after `RoomHosted`, or as guest).
-    RoomJoined { room: RoomInfo, host: bool },
+    RoomJoined {
+        room: RoomInfo,
+        host: bool,
+    },
     /// Waiting for the host to accept our knock.
-    Knocking { room: RoomInfo },
-    KnockDenied { room: String },
+    Knocking {
+        room: RoomInfo,
+    },
+    KnockDenied {
+        room: String,
+    },
     /// Host: somebody knocks; answer with [`Client::answer_knock`].
-    Knock { knock: String, account: i64, username: String },
-    PeerJoined { peer: PeerId, account: i64, username: String },
-    PeerConnected { peer: PeerId, relayed: bool },
-    PeerPathChanged { peer: PeerId, relayed: bool },
-    PeerData { peer: PeerId, channel: u8, data: Vec<u8>, reliable: bool },
-    PeerLeft { peer: PeerId, account: i64 },
-    RoomClosed { room: String },
-    Kicked { room: String, banned: bool },
+    Knock {
+        knock: String,
+        account: i64,
+        username: String,
+    },
+    PeerJoined {
+        peer: PeerId,
+        account: i64,
+        username: String,
+    },
+    PeerConnected {
+        peer: PeerId,
+        relayed: bool,
+    },
+    PeerPathChanged {
+        peer: PeerId,
+        relayed: bool,
+    },
+    PeerData {
+        peer: PeerId,
+        channel: u8,
+        data: Vec<u8>,
+        reliable: bool,
+    },
+    PeerLeft {
+        peer: PeerId,
+        account: i64,
+    },
+    RoomClosed {
+        room: String,
+    },
+    Kicked {
+        room: String,
+        banned: bool,
+    },
     RoomList(Vec<RoomInfo>),
     Queued(QueueStatus),
-    MatchFound { match_id: String, room: String, host: bool, teams: Vec<Vec<String>> },
-    MatchFinished { match_id: String, state: String },
+    MatchFound {
+        match_id: String,
+        room: String,
+        host: bool,
+        teams: Vec<Vec<String>>,
+    },
+    MatchFinished {
+        match_id: String,
+        state: String,
+    },
     MatchReported(MatchInfo),
-    ScoreSubmitted { board: String, result: ScoreSubmitted },
+    ScoreSubmitted {
+        board: String,
+        result: ScoreSubmitted,
+    },
     Standings(StandingsResponse),
     Board(BoardResponse),
     Update(UpdateInfo),
-    ModsProgress { done: u64, total: u64 },
-    ModsSynced { lockfile: Lockfile, paths: Vec<PathBuf> },
+    ModsProgress {
+        done: u64,
+        total: u64,
+    },
+    ModsSynced {
+        lockfile: Lockfile,
+        paths: Vec<PathBuf>,
+    },
     /// A request failed. `op` names it (`host`, `join`, ...).
-    Error { op: String, code: String, message: String },
+    Error {
+        op: String,
+        code: String,
+        message: String,
+    },
 }
 
 enum Cmd {

@@ -298,7 +298,10 @@ pub struct JoinByCode {
 pub enum JoinResponse {
     Joined(Joined),
     /// Waiting for the host; a `knock_result` event follows.
-    Knocking { room: RoomInfo, knock: String },
+    Knocking {
+        room: RoomInfo,
+        knock: String,
+    },
 }
 
 /// What a member needs to talk to the other members.
@@ -653,16 +656,7 @@ pub struct ReportRequest {
 pub const REPORT_REASONS: &[&str] = &["copyright", "malware", "broken", "inappropriate", "spam", "impersonation", "other"];
 
 /// Reasons a moderator picks when rejecting; the author sees it.
-pub const REJECT_REASONS: &[&str] = &[
-    "copyright",
-    "malware",
-    "broken",
-    "inappropriate",
-    "spam",
-    "wrong-category",
-    "missing-license",
-    "other",
-];
+pub const REJECT_REASONS: &[&str] = &["copyright", "malware", "broken", "inappropriate", "spam", "wrong-category", "missing-license", "other"];
 
 /// `GET /api/v1/moderation/queue`
 #[derive(Serialize, Deserialize, Debug, Clone)]

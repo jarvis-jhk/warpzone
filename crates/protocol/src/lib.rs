@@ -37,8 +37,5 @@ pub const MAX_DATAGRAM: usize = 1100;
 
 /// Current time in seconds since the Unix epoch.
 pub fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }

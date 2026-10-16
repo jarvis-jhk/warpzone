@@ -153,7 +153,7 @@ fn main() {
         "updates" => print(&ok(api(&server).updates(arg(a, 1, "game"), arg(a, 2, "version")))),
         "changelog" => {
             for e in ok(api(&server).changelog(arg(a, 1, "game"))) {
-                println!("## {} {} ({})\n{}\n", e.version, if e.prerelease { "[preview]" } else { "" }, &e.published.get(..10).unwrap_or(""), e.notes.trim());
+                println!("## {} {} ({})\n{}\n", e.version, if e.prerelease { "[preview]" } else { "" }, e.published.get(..10).unwrap_or(""), e.notes.trim());
             }
         }
         "install" => {
@@ -270,8 +270,8 @@ fn main() {
         }
         "mod-upload" => {
             let game = arg(a, 1, "game");
-            let m: Manifest = serde_json::from_slice(&ok(std::fs::read(arg(a, 2, "manifest")).map_err(Into::into)))
-                .unwrap_or_else(|e| die(&format!("manifest: {e}")));
+            let m: Manifest =
+                serde_json::from_slice(&ok(std::fs::read(arg(a, 2, "manifest")).map_err(Into::into))).unwrap_or_else(|e| die(&format!("manifest: {e}")));
             if let Err(e) = m.check() {
                 die(&e.to_string());
             }
@@ -318,7 +318,16 @@ fn main() {
                 println!("    download: {server}{}", p.download);
             }
             for r in &q.reports {
-                println!("REPORT #{} {} {} {} — {} by {}{}", r.id, r.target, r.game.as_deref().unwrap_or(""), r.name, r.reason, r.reporter, r.detail.as_ref().map(|d| format!(": {d}")).unwrap_or_default());
+                println!(
+                    "REPORT #{} {} {} {} — {} by {}{}",
+                    r.id,
+                    r.target,
+                    r.game.as_deref().unwrap_or(""),
+                    r.name,
+                    r.reason,
+                    r.reporter,
+                    r.detail.as_ref().map(|d| format!(": {d}")).unwrap_or_default()
+                );
             }
             if q.pending.is_empty() && q.reports.is_empty() {
                 println!("nothing waiting");
@@ -334,7 +343,8 @@ fn main() {
         "note" => print(&ok(api(&server).note(arg(a, 1, "game"), arg(a, 2, "name"), arg(a, 3, "version"), &a[4..].join(" ")))),
         "close-report" => print(&ok(api(&server).close_report(arg(a, 1, "id").parse().unwrap_or_else(|_| die("id is a number"))))),
         "rename-user" => {
-            let v: serde_json::Value = ok(api(&server).post(&format!("/moderation/accounts/{}/rename", arg(a, 1, "old")), &serde_json::json!({ "username": arg(a, 2, "new") })));
+            let v: serde_json::Value =
+                ok(api(&server).post(&format!("/moderation/accounts/{}/rename", arg(a, 1, "old")), &serde_json::json!({ "username": arg(a, 2, "new") })));
             print(&v);
         }
         "netcheck" => netcheck(&server),
@@ -402,13 +412,19 @@ fn net_test(server: &str, game: &str, code: Option<String>, relay: bool) {
                 Event::PeerConnected { peer, relayed } => {
                     println!("connected to {} — {}", c.peer_name(peer).unwrap_or_default(), if relayed { "via relay" } else { "direct" })
                 }
-                Event::PeerPathChanged { peer, relayed } => println!("{}: now {}", c.peer_name(peer).unwrap_or_default(), if relayed { "relayed" } else { "direct" }),
+                Event::PeerPathChanged { peer, relayed } => {
+                    println!("{}: now {}", c.peer_name(peer).unwrap_or_default(), if relayed { "relayed" } else { "direct" })
+                }
                 Event::PeerData { peer, data, .. } => {
                     if code.is_none() {
                         c.send(peer, 0, &data, false); // echo
                     } else if data.len() >= 4 {
                         let rtt = c.peer_rtt(peer).map(|d| d.as_millis()).unwrap_or(0);
-                        println!("echo #{} from host, rtt ≈ {rtt} ms, {}", u32::from_be_bytes(data[..4].try_into().unwrap()), if c.peer_relayed(peer) == Some(true) { "relayed" } else { "direct" });
+                        println!(
+                            "echo #{} from host, rtt ≈ {rtt} ms, {}",
+                            u32::from_be_bytes(data[..4].try_into().unwrap()),
+                            if c.peer_relayed(peer) == Some(true) { "relayed" } else { "direct" }
+                        );
                     }
                 }
                 Event::PeerLeft { account, .. } => println!("peer {account} left"),

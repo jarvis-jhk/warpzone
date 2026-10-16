@@ -109,7 +109,10 @@ impl ModStore {
         let mut out = Vec::new();
         for name in &lock.order {
             let e = lock.mods.iter().find(|m| &m.name == name).ok_or_else(|| Error::Other(format!("{name} missing from lockfile")))?;
-            let m = self.get(&e.name, &e.version).filter(|m| m.sha256 == e.sha256).ok_or_else(|| Error::Other(format!("{} {} is not installed", e.name, e.version)))?;
+            let m = self
+                .get(&e.name, &e.version)
+                .filter(|m| m.sha256 == e.sha256)
+                .ok_or_else(|| Error::Other(format!("{} {} is not installed", e.name, e.version)))?;
             out.push(self.content_path(&m));
         }
         Ok(out)

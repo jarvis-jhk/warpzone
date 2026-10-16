@@ -193,9 +193,7 @@ pub async fn run(relay: std::sync::Arc<Relay>, socket: std::net::UdpSocket, limi
         };
         let pkt = &buf[..n];
         // STUN and binds are cheap but unauthenticated: cap them per source IP.
-        if !pkt.starts_with(wire::RELAY_DATA)
-            && !limiter.limiter.allow(&format!("udp:{}", wire::canonical(from).ip()), 50, Duration::from_secs(1))
-        {
+        if !pkt.starts_with(wire::RELAY_DATA) && !limiter.limiter.allow(&format!("udp:{}", wire::canonical(from).ip()), 50, Duration::from_secs(1)) {
             continue;
         }
         if let Some((out, to)) = relay.handle(pkt, from) {

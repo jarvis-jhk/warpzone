@@ -49,11 +49,9 @@ impl Auth {
 
 /// Look up the account a key belongs to.
 pub fn account_for_key(db: &rusqlite::Connection, key: &str) -> rusqlite::Result<Option<Account>> {
-    db.query_row(
-        "SELECT a.id, a.username, a.created FROM keys k JOIN accounts a ON a.id = k.account WHERE k.key = ?1",
-        [key],
-        |r| Ok(Account { id: r.get(0)?, username: r.get(1)?, created: r.get(2)? }),
-    )
+    db.query_row("SELECT a.id, a.username, a.created FROM keys k JOIN accounts a ON a.id = k.account WHERE k.key = ?1", [key], |r| {
+        Ok(Account { id: r.get(0)?, username: r.get(1)?, created: r.get(2)? })
+    })
     .optional()
 }
 
@@ -101,11 +99,8 @@ impl FromRequestParts<AppState> for MaybeAuth {
 /// The client's IP: `X-Forwarded-For` behind a trusted proxy, else the socket.
 pub fn client_ip(state: &AppState, headers: &HeaderMap, peer: SocketAddr) -> IpAddr {
     if state.cfg.trust_forwarded_for
-        && let Some(ip) = headers
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.split(',').next_back())
-            .and_then(|v| v.trim().parse().ok())
+        && let Some(ip) =
+            headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.split(',').next_back()).and_then(|v| v.trim().parse().ok())
     {
         return ip;
     }
@@ -144,10 +139,7 @@ pub async fn login(State(state): State<AppState>, Json(req): Json<LoginRequest>)
         return Err(ApiError::new(axum::http::StatusCode::UNAUTHORIZED, "bad_challenge", "challenge expired"));
     }
     let vk = parse_key(&key).ok_or_else(|| ApiError::bad("bad key"))?;
-    let sig: [u8; 64] = hex::decode(&req.signature)
-        .ok()
-        .and_then(|b| b.try_into().ok())
-        .ok_or_else(|| ApiError::bad("signature must be 64 hex bytes"))?;
+    let sig: [u8; 64] = hex::decode(&req.signature).ok().and_then(|b| b.try_into().ok()).ok_or_else(|| ApiError::bad("signature must be 64 hex bytes"))?;
     vk.verify(&login_message(&state.server_key_hex, &req.nonce), &Signature::from_bytes(&sig))
         .map_err(|_| ApiError::new(axum::http::StatusCode::UNAUTHORIZED, "bad_signature", "signature does not verify"))?;
     let token = hex::encode(rand::random::<[u8; 32]>());

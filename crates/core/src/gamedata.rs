@@ -38,12 +38,7 @@ fn home() -> Option<PathBuf> {
 fn steam_roots() -> Vec<PathBuf> {
     let mut v = Vec::new();
     if let Some(h) = home() {
-        for p in [
-            ".steam/steam",
-            ".local/share/Steam",
-            ".var/app/com.valvesoftware.Steam/.local/share/Steam",
-            "snap/steam/common/.local/share/Steam",
-        ] {
+        for p in [".steam/steam", ".local/share/Steam", ".var/app/com.valvesoftware.Steam/.local/share/Steam", "snap/steam/common/.local/share/Steam"] {
             v.push(h.join(p));
         }
     }

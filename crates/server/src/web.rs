@@ -37,11 +37,7 @@ fn platform_label(p: &str) -> &str {
 }
 
 fn mb(bytes: u64) -> String {
-    if bytes >= 1024 * 1024 {
-        format!("{:.1} MB", bytes as f64 / 1_048_576.0)
-    } else {
-        format!("{} KB", bytes.div_ceil(1024))
-    }
+    if bytes >= 1024 * 1024 { format!("{:.1} MB", bytes as f64 / 1_048_576.0) } else { format!("{} KB", bytes.div_ceil(1024)) }
 }
 
 fn date(iso_or_unix: &str) -> String {
@@ -142,7 +138,14 @@ fn downloads(rel: Option<&ReleaseInfo>, homepage: Option<&str>) -> String {
     let mut s = String::from(r#"<div class="dl">"#);
     for (p, _) in PLATFORMS {
         if let Some(a) = r.assets.get(*p) {
-            let _ = write!(s, r#"<a class="btn small" href="{}" title="{}">{} <span class="sub">{}</span></a>"#, esc(&a.url), esc(&a.name), platform_label(p), mb(a.size));
+            let _ = write!(
+                s,
+                r#"<a class="btn small" href="{}" title="{}">{} <span class="sub">{}</span></a>"#,
+                esc(&a.url),
+                esc(&a.name),
+                platform_label(p),
+                mb(a.size)
+            );
         }
     }
     let _ = write!(
@@ -195,7 +198,13 @@ fn rooms_table(state: &AppState, rooms: &[RoomInfo], show_game: bool) -> String 
             s,
             r#"<td>{}{}</td><td>{}/{}</td><td class="muted">{}</td><td class="muted">{}</td><td><a class="btn small" href="/join/{}">Join</a></td></tr>"#,
             esc(&r.name),
-            if r.entry == warpzone_protocol::api::Entry::Approve { r#" <span class="badge">host approves</span>"# } else if r.entry == warpzone_protocol::api::Entry::Code { r#" <span class="badge">code</span>"# } else { "" },
+            if r.entry == warpzone_protocol::api::Entry::Approve {
+                r#" <span class="badge">host approves</span>"#
+            } else if r.entry == warpzone_protocol::api::Entry::Code {
+                r#" <span class="badge">code</span>"#
+            } else {
+                ""
+            },
             r.players,
             r.max_players,
             audience(r),
@@ -213,10 +222,8 @@ pub async fn index(State(state): State<AppState>) -> Html<String> {
     let rooms = list_public(&state, &RoomQuery::default());
     let releases = state.releases.read().unwrap().clone();
     let players: u32 = state.rooms.lock().unwrap().by_id.values().map(|r| r.members.len() as u32).sum();
-    let mods: i64 = state
-        .db()
-        .query_row("SELECT COUNT(DISTINCT game || '/' || name) FROM mod_versions WHERE state='approved' AND yanked=0", [], |r| r.get(0))
-        .unwrap_or(0);
+    let mods: i64 =
+        state.db().query_row("SELECT COUNT(DISTINCT game || '/' || name) FROM mod_versions WHERE state='approved' AND yanked=0", [], |r| r.get(0)).unwrap_or(0);
     let src = esc(&state.cfg.source_url);
 
     let mut cards = String::new();
@@ -238,7 +245,9 @@ pub async fn index(State(state): State<AppState>) -> Html<String> {
 
     let launcher = match releases.get(crate::releases::LAUNCHER) {
         Some(r) if !r.assets.is_empty() => downloads(Some(r), None),
-        _ => format!(r#"<div class="dl"><a class="btn" href="{src}/releases">Launcher builds on GitHub</a></div><p class="ver">The first launcher release is on its way; until then, games work on their own.</p>"#),
+        _ => format!(
+            r#"<div class="dl"><a class="btn" href="{src}/releases">Launcher builds on GitHub</a></div><p class="ver">The first launcher release is on its way; until then, games work on their own.</p>"#
+        ),
     };
 
     let body = format!(
@@ -318,14 +327,24 @@ pub async fn game_page(State(state): State<AppState>, Path(id): Path<String>) ->
             let mut t = format!(r#"<div class="panel"><h3 style="margin-top:0">{}</h3>"#, esc(&q.title));
             match s {
                 Ok(s) if !s.standings.is_empty() => {
-                    let _ = write!(t, r#"<p class="muted">Season {}{}</p><table><tr><th>#</th><th>Player</th><th>Rating</th><th>Games</th></tr>"#, esc(&s.season), if s.placing > 0 { format!(" · {} placing", s.placing) } else { String::new() });
+                    let _ = write!(
+                        t,
+                        r#"<p class="muted">Season {}{}</p><table><tr><th>#</th><th>Player</th><th>Rating</th><th>Games</th></tr>"#,
+                        esc(&s.season),
+                        if s.placing > 0 { format!(" · {} placing", s.placing) } else { String::new() }
+                    );
                     for r in s.standings {
                         let _ = write!(t, "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>", r.rank, esc(&r.username), r.rating, r.games);
                     }
                     t.push_str("</table>");
                 }
                 Ok(s) => {
-                    let _ = write!(t, r#"<p class="muted">Season {} has no ranked players yet{}.</p>"#, esc(&s.season), if s.placing > 0 { format!(" ({} placing)", s.placing) } else { String::new() });
+                    let _ = write!(
+                        t,
+                        r#"<p class="muted">Season {} has no ranked players yet{}.</p>"#,
+                        esc(&s.season),
+                        if s.placing > 0 { format!(" ({} placing)", s.placing) } else { String::new() }
+                    );
                 }
                 Err(_) => t.push_str(r#"<p class="muted">Unavailable.</p>"#),
             }
@@ -357,11 +376,18 @@ pub async fn game_page(State(state): State<AppState>, Path(id): Path<String>) ->
     if let Some(m) = &g.mods {
         let list = crate::modstore::list_inner(&state, &id, &Default::default()).unwrap_or_default();
         let cats: Vec<String> = m.categories.iter().map(|c| esc(&c.label)).collect();
-        let _ = write!(body, r#"<section><h2>Mods</h2><p class="sub">Categories: {}. Every mod version is reviewed by a moderator before it appears.{}</p>"#, cats.join(", "), if m.contains_code { " Mods for this game can contain code." } else { "" });
+        let _ = write!(
+            body,
+            r#"<section><h2>Mods</h2><p class="sub">Categories: {}. Every mod version is reviewed by a moderator before it appears.{}</p>"#,
+            cats.join(", "),
+            if m.contains_code { " Mods for this game can contain code." } else { "" }
+        );
         if list.is_empty() {
             body.push_str(r#"<p class="muted">No mods published yet.</p>"#);
         } else {
-            body.push_str(r#"<div class="panel" style="padding:4px 8px"><table><tr><th>Mod</th><th>Category</th><th>Author</th><th>Version</th><th>Downloads</th></tr>"#);
+            body.push_str(
+                r#"<div class="panel" style="padding:4px 8px"><table><tr><th>Mod</th><th>Category</th><th>Author</th><th>Version</th><th>Downloads</th></tr>"#,
+            );
             for x in list.iter().take(50) {
                 let label = m.categories.iter().find(|c| c.id == x.category).map(|c| c.label.as_str()).unwrap_or(&x.category);
                 let _ = write!(
@@ -485,7 +511,9 @@ pub fn md(src: &str) -> String {
 fn changelog_section(state: &AppState, key: &str) -> String {
     let logs = state.changelogs.read().unwrap();
     let Some(h) = logs.get(key).filter(|h| !h.is_empty()) else { return String::new() };
-    let mut s = String::from(r#"<section><h2>What's new</h2><p class="sub">From the project's release notes. Games and the launcher show these after every update.</p>"#);
+    let mut s = String::from(
+        r#"<section><h2>What's new</h2><p class="sub">From the project's release notes. Games and the launcher show these after every update.</p>"#,
+    );
     for e in h.iter().take(3) {
         let _ = write!(
             s,
@@ -508,7 +536,8 @@ fn format_ms(ms: i64) -> String {
 
 pub async fn mod_page(State(state): State<AppState>, Path((game, name)): Path<(String, String)>) -> Response {
     let (Ok(g), Ok(d)) = (state.game(&game), crate::modstore::detail_inner(&state, &game, &name, None)) else { return not_found(&state) };
-    let cat = g.mods.as_ref().and_then(|m| m.categories.iter().find(|c| c.id == d.summary.category)).map(|c| c.label.clone()).unwrap_or(d.summary.category.clone());
+    let cat =
+        g.mods.as_ref().and_then(|m| m.categories.iter().find(|c| c.id == d.summary.category)).map(|c| c.label.clone()).unwrap_or(d.summary.category.clone());
     let mut body = format!(
         r#"<div class="game-head"><div><p class="muted" style="margin:0"><a href="/games/{gid}">{gname}</a> · {cat}</p><h1>{title}</h1><p class="muted" style="margin:0">by {author} · {license} · {dl} downloads</p></div><div>{home}</div></div><section>"#,
         gid = esc(&game),
@@ -518,7 +547,8 @@ pub async fn mod_page(State(state): State<AppState>, Path((game, name)): Path<(S
         author = esc(&d.summary.author),
         license = esc(&d.license),
         dl = d.summary.downloads,
-        home = d.homepage.as_ref().filter(|h| h.starts_with("https://")).map(|h| format!(r#"<a class="btn" href="{}">Homepage</a>"#, esc(h))).unwrap_or_default(),
+        home =
+            d.homepage.as_ref().filter(|h| h.starts_with("https://")).map(|h| format!(r#"<a class="btn" href="{}">Homepage</a>"#, esc(h))).unwrap_or_default(),
     );
     if d.contains_code {
         body.push_str(r#"<p class="notice">Mods for this game can contain code. Only install mods from authors you trust.</p>"#);
@@ -539,7 +569,9 @@ pub async fn mod_page(State(state): State<AppState>, Path((game, name)): Path<(S
             n = esc(&name)
         );
     }
-    body.push_str("</table></div><p class=\"muted\">The launcher and games that use Warpzone install mods with their dependencies automatically.</p></section>");
+    body.push_str(
+        "</table></div><p class=\"muted\">The launcher and games that use Warpzone install mods with their dependencies automatically.</p></section>",
+    );
     page(&state, &format!("{} · {}", d.summary.title, g.name), &d.summary.description.chars().take(150).collect::<String>(), &body).into_response()
 }
 

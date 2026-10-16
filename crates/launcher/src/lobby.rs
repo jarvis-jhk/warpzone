@@ -75,7 +75,15 @@ impl Lobby {
     }
 }
 
-fn engine(cfg: Config, desc: GameDescriptor, inst: Installed, mode: Mode, rx: Receiver<Cmd>, view: Arc<Mutex<View>>, wake: &eframe::egui::Context) -> Result<(), String> {
+fn engine(
+    cfg: Config,
+    desc: GameDescriptor,
+    inst: Installed,
+    mode: Mode,
+    rx: Receiver<Cmd>,
+    view: Arc<Mutex<View>>,
+    wake: &eframe::egui::Context,
+) -> Result<(), String> {
     let t0 = desc.tier0.clone().ok_or("this game has no launcher lobby")?;
     let mut client = Client::new(cfg).map_err(|e| e.to_string())?;
     let defaults: BTreeMap<String, String> =

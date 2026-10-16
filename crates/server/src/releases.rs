@@ -13,11 +13,7 @@ pub const LAUNCHER: &str = "@launcher";
 
 fn fetch(install: &Install) -> Result<(Option<ReleaseInfo>, Vec<ChangelogEntry>), String> {
     let url = format!("https://api.github.com/repos/{}/releases?per_page=10", install.github);
-    let mut resp = ureq::get(&url)
-        .header("User-Agent", "warpzone-server")
-        .header("Accept", "application/vnd.github+json")
-        .call()
-        .map_err(|e| e.to_string())?;
+    let mut resp = ureq::get(&url).header("User-Agent", "warpzone-server").header("Accept", "application/vnd.github+json").call().map_err(|e| e.to_string())?;
     let list: serde_json::Value = resp.body_mut().read_json().map_err(|e| e.to_string())?;
     let list = list.as_array().ok_or("unexpected GitHub response")?;
     let usable = |r: &&serde_json::Value| !r["draft"].as_bool().unwrap_or(false);
@@ -40,11 +36,7 @@ fn fetch(install: &Install) -> Result<(Option<ReleaseInfo>, Vec<ChangelogEntry>)
     let Some(r) = pick else { return Ok((None, history)) };
     let assets: Vec<(&str, &str, u64)> = r["assets"]
         .as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|x| Some((x["name"].as_str()?, x["browser_download_url"].as_str()?, x["size"].as_u64().unwrap_or(0))))
-                .collect()
-        })
+        .map(|a| a.iter().filter_map(|x| Some((x["name"].as_str()?, x["browser_download_url"].as_str()?, x["size"].as_u64().unwrap_or(0)))).collect())
         .unwrap_or_default();
     let mut out = BTreeMap::new();
     for (platform, pattern) in &install.assets {
@@ -52,38 +44,28 @@ fn fetch(install: &Install) -> Result<(Option<ReleaseInfo>, Vec<ChangelogEntry>)
             out.insert(platform.clone(), AssetInfo { name: name.to_string(), url: url.to_string(), size: *size });
         }
     }
-    let checksums = install
-        .checksums
-        .as_ref()
-        .and_then(|c| assets.iter().find(|(n, _, _)| glob_match(c, n)))
-        .map(|(_, u, _)| u.to_string());
-    Ok((Some(ReleaseInfo {
-        notes: r["body"].as_str().unwrap_or("").chars().take(20_000).collect(),
-        version: r["tag_name"].as_str().unwrap_or("").trim_start_matches('v').to_string(),
-        name: r["name"].as_str().unwrap_or("").to_string(),
-        published: r["published_at"].as_str().unwrap_or("").to_string(),
-        prerelease: r["prerelease"].as_bool().unwrap_or(false),
-        page: r["html_url"].as_str().unwrap_or("").to_string(),
-        assets: out,
-        checksums,
-    }), history))
+    let checksums = install.checksums.as_ref().and_then(|c| assets.iter().find(|(n, _, _)| glob_match(c, n))).map(|(_, u, _)| u.to_string());
+    Ok((
+        Some(ReleaseInfo {
+            notes: r["body"].as_str().unwrap_or("").chars().take(20_000).collect(),
+            version: r["tag_name"].as_str().unwrap_or("").trim_start_matches('v').to_string(),
+            name: r["name"].as_str().unwrap_or("").to_string(),
+            published: r["published_at"].as_str().unwrap_or("").to_string(),
+            prerelease: r["prerelease"].as_bool().unwrap_or(false),
+            page: r["html_url"].as_str().unwrap_or("").to_string(),
+            assets: out,
+            checksums,
+        }),
+        history,
+    ))
 }
 
 pub async fn refresh(state: &AppState) {
-    let mut jobs: Vec<(String, Install)> = state
-        .games
-        .read()
-        .unwrap()
-        .by_id
-        .values()
-        .filter_map(|g| g.install.clone().map(|i| (g.id.clone(), i)))
-        .collect();
+    let mut jobs: Vec<(String, Install)> = state.games.read().unwrap().by_id.values().filter_map(|g| g.install.clone().map(|i| (g.id.clone(), i))).collect();
     if let Some(l) = &state.cfg.launcher {
         jobs.push((LAUNCHER.to_string(), l.clone()));
     }
-    let results = tokio::task::spawn_blocking(move || jobs.into_iter().map(|(id, i)| (id, fetch(&i))).collect::<Vec<_>>())
-        .await
-        .unwrap_or_default();
+    let results = tokio::task::spawn_blocking(move || jobs.into_iter().map(|(id, i)| (id, fetch(&i))).collect::<Vec<_>>()).await.unwrap_or_default();
     let mut cache = state.releases.write().unwrap();
     let mut logs = state.changelogs.write().unwrap();
     for (id, r) in results {
@@ -122,6 +104,14 @@ pub fn updates(state: &crate::state::State, key: &str, current: &str) -> UpdateI
     UpdateInfo { current: current.to_string(), update_available, latest, changes }
 }
 
+pub async fn run(state: AppState) {
+    loop {
+        state.reload_games();
+        refresh(&state).await;
+        tokio::time::sleep(Duration::from_secs(900)).await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -129,13 +119,5 @@ mod tests {
         assert!(super::newer("0.1.10", "0.1.9"));
         assert!(!super::newer("0.1.9", "0.1.10"));
         assert!(!super::newer("1.0", "1.0.0"));
-    }
-}
-
-pub async fn run(state: AppState) {
-    loop {
-        state.reload_games();
-        refresh(&state).await;
-        tokio::time::sleep(Duration::from_secs(900)).await;
     }
 }

@@ -327,7 +327,13 @@ fn motif(px: &mut Pixmap, m: &str, acc: Rgb, rng: &mut Rng) {
                 pb.move_to(bx + a.cos() * u * 0.04, by + a.sin() * u * 0.04);
                 pb.line_to(bx + a.cos() * len, by + a.sin() * len);
                 if let Some(p) = pb.finish() {
-                    px.stroke_path(&p, &paint(Rgb(1.0, 0.9, 0.6).c(0.7)), &Stroke { width: u * 0.008, line_cap: tiny_skia::LineCap::Round, ..Default::default() }, Transform::identity(), None);
+                    px.stroke_path(
+                        &p,
+                        &paint(Rgb(1.0, 0.9, 0.6).c(0.7)),
+                        &Stroke { width: u * 0.008, line_cap: tiny_skia::LineCap::Round, ..Default::default() },
+                        Transform::identity(),
+                        None,
+                    );
                 }
             }
             glow(px, bx, by, u * 0.08, Rgb(1.0, 1.0, 0.8), 0.9);
@@ -389,7 +395,7 @@ fn motif(px: &mut Pixmap, m: &str, acc: Rgb, rng: &mut Rng) {
                 let base = h * (0.35 + k as f32 * 0.11);
                 let amp = u * rng.range(0.03, 0.08);
                 let freq = rng.range(1.0, 2.5) * std::f32::consts::TAU / w;
-                let phase = rng.range(0.0, 6.28);
+                let phase = rng.range(0.0, std::f32::consts::TAU);
                 pb.move_to(0.0, h);
                 let mut x = 0.0;
                 while x <= w {
@@ -536,7 +542,13 @@ pub fn render(spec: &Spec, kind: Kind) -> (u32, u32, Vec<u8>) {
         Kind::Icon => {
             fill(&mut px, round_rect(8.0, 8.0, wf - 16.0, hf - 16.0, wf * 0.22), &paint(acc.dark(0.45).c(1.0)));
             glow(&mut px, wf * 0.7, hf * 0.3, wf * 0.6, acc.light(0.3), 0.6);
-            let initials: String = spec.name.split_whitespace().filter(|w| w.chars().next().is_some_and(|c| c.is_alphanumeric())).filter_map(|w| w.chars().next()).take(2).collect();
+            let initials: String = spec
+                .name
+                .split_whitespace()
+                .filter(|w| w.chars().next().is_some_and(|c| c.is_alphanumeric()))
+                .filter_map(|w| w.chars().next())
+                .take(2)
+                .collect();
             let size = hf * 0.46;
             let tw = text_width(&font, size, &initials);
             text(&mut px, &font, size, (wf - tw) / 2.0 + 4.0, hf * 0.66 + 4.0, &initials, Rgb(0.0, 0.0, 0.0), 0.5);
@@ -560,7 +572,7 @@ pub fn render(spec: &Spec, kind: Kind) -> (u32, u32, Vec<u8>) {
     }
     // Un-premultiply for image encoders and egui.
     let mut out = px.take();
-    for p in out.chunks_exact_mut(4) {
+    for p in out.as_chunks_mut::<4>().0 {
         let a = p[3] as f32 / 255.0;
         if a > 0.0 && a < 1.0 {
             for c in &mut p[..3] {

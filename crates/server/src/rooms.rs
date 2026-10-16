@@ -149,11 +149,7 @@ impl Room {
 
     fn joined_as_guest(&self, srv: &Srv, account: i64) -> Joined {
         let g = &self.members[&account];
-        Joined {
-            room: self.info(),
-            session: PeerSession { ticket: self.ticket(srv, g, Role::Guest), role: Role::Guest },
-            peers: vec![self.host_peer(g)],
-        }
+        Joined { room: self.info(), session: PeerSession { ticket: self.ticket(srv, g, Role::Guest), role: Role::Guest }, peers: vec![self.host_peer(g)] }
     }
 }
 
@@ -404,7 +400,7 @@ pub fn list_public(state: &AppState, q: &RoomQuery) -> Vec<RoomInfo> {
         .filter(|r| !q.has_space || ((r.members.len() as u32) < r.max_players && !r.closed_to_joins))
         .map(|r| r.info())
         .collect();
-    v.sort_by(|a, b| b.created.cmp(&a.created));
+    v.sort_by_key(|r| std::cmp::Reverse(r.created));
     v
 }
 
@@ -534,10 +530,7 @@ pub async fn decide_knock(
     }
     room.approved.insert(k.account);
     let joined = rooms.add_member(&state, &id, k.account, k.username, k.key, k.candidates);
-    state.events.push(
-        &principal_account(k.account),
-        ServerEvent::KnockResult { room: id.clone(), accepted: true, joined: Some(Box::new(joined)) },
-    );
+    state.events.push(&principal_account(k.account), ServerEvent::KnockResult { room: id.clone(), accepted: true, joined: Some(Box::new(joined)) });
     Ok(Json(serde_json::json!({ "accepted": true })))
 }
 

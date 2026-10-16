@@ -405,10 +405,7 @@ impl<'a> Solver<'a> {
             return Ok(false);
         };
         let pinned = matches!(p.dep.constraint, Some((Op::Eq, _)));
-        let mut cands: Vec<&'a Candidate> = versions
-            .iter()
-            .filter(|c| (!c.yanked || pinned) && p.dep.matches(&c.version))
-            .collect();
+        let mut cands: Vec<&'a Candidate> = versions.iter().filter(|c| (!c.yanked || pinned) && p.dep.matches(&c.version)).collect();
         cands.sort_by(|a, b| b.version.cmp(&a.version));
         let game_ok: Vec<&'a Candidate> = cands.iter().copied().filter(|c| c.game_req.matches(self.game_version)).collect();
         if game_ok.is_empty() {
@@ -442,12 +439,7 @@ impl<'a> Solver<'a> {
 /// Choose versions for `wanted` (required dependencies, constraints optional)
 /// from `catalog` (name → published, approved versions), newest first, with
 /// backtracking. Returns a lockfile with a load order.
-pub fn resolve(
-    catalog: &BTreeMap<String, Vec<Candidate>>,
-    wanted: &[Dependency],
-    game: &str,
-    game_version: &Version,
-) -> Result<Lockfile, ResolveError> {
+pub fn resolve(catalog: &BTreeMap<String, Vec<Candidate>>, wanted: &[Dependency], game: &str, game_version: &Version) -> Result<Lockfile, ResolveError> {
     if wanted.iter().any(|d| !d.is_required()) {
         return Err(ResolveError::Invalid("requested mods must be plain requirements".into()));
     }
@@ -462,13 +454,7 @@ pub fn resolve(
     let order = load_order(chosen.iter().map(|c| (c.name.as_str(), c.deps.as_slice())))?;
     let mods: Vec<LockEntry> = chosen
         .iter()
-        .map(|c| LockEntry {
-            name: c.name.clone(),
-            version: c.version.to_string(),
-            sha256: c.sha256.clone(),
-            size: c.size,
-            category: c.category.clone(),
-        })
+        .map(|c| LockEntry { name: c.name.clone(), version: c.version.to_string(), sha256: c.sha256.clone(), size: c.size, category: c.category.clone() })
         .collect();
     let hash = Lockfile::compute_hash(game, &mods);
     Ok(Lockfile { format: 1, game: game.into(), game_version: game_version.to_string(), mods, order, hash })
@@ -537,7 +523,7 @@ pub fn validate_set(enabled: &[Installed], game_version: &Version) -> Vec<String
                 (Some(o), _) if !d.matches(&o.version) => {
                     problems.push(format!("{} {} needs {}, but {} is enabled", m.name, m.version, d.requirement(), o.version))
                 }
-                (None, k) if matches!(k, DepKind::Required | DepKind::NoOrder) => {
+                (None, DepKind::Required | DepKind::NoOrder) => {
                     problems.push(format!("{} {} needs {}, which is not enabled", m.name, m.version, d.requirement()))
                 }
                 _ => {}
@@ -617,23 +603,14 @@ mod tests {
 
     #[test]
     fn backtracks_when_newest_conflicts() {
-        let c = catalog(vec![
-            cand("a", "1.0.0", &["b", "c"]),
-            cand("b", "2.0.0", &["! c"]),
-            cand("b", "1.0.0", &[]),
-            cand("c", "1.0.0", &[]),
-        ]);
+        let c = catalog(vec![cand("a", "1.0.0", &["b", "c"]), cand("b", "2.0.0", &["! c"]), cand("b", "1.0.0", &[]), cand("c", "1.0.0", &[])]);
         let l = resolve(&c, &want(&["a"]), "g", &gv()).unwrap();
         assert!(l.mods.iter().any(|m| m.name == "b" && m.version == "1.0.0"));
     }
 
     #[test]
     fn explains_failure_with_chain() {
-        let c = catalog(vec![
-            cand("campaign", "1.0.0", &["world-one"]),
-            cand("world-one", "1.0.0", &["cave-tiles >= 2"]),
-            cand("cave-tiles", "1.0.0", &[]),
-        ]);
+        let c = catalog(vec![cand("campaign", "1.0.0", &["world-one"]), cand("world-one", "1.0.0", &["cave-tiles >= 2"]), cand("cave-tiles", "1.0.0", &[])]);
         let e = resolve(&c, &want(&["campaign"]), "g", &gv()).unwrap_err().to_string();
         assert!(e.contains("requested → campaign 1.0.0 → world-one 1.0.0 needs cave-tiles >= 2.0.0"), "{e}");
         assert!(e.contains("available: 1.0.0"), "{e}");
@@ -641,11 +618,7 @@ mod tests {
 
     #[test]
     fn optional_constrains_when_present() {
-        let c = catalog(vec![
-            cand("a", "1.0.0", &["? b >= 2"]),
-            cand("b", "1.0.0", &[]),
-            cand("b", "2.0.0", &[]),
-        ]);
+        let c = catalog(vec![cand("a", "1.0.0", &["? b >= 2"]), cand("b", "1.0.0", &[]), cand("b", "2.0.0", &[])]);
         let l = resolve(&c, &want(&["a"]), "g", &gv()).unwrap();
         assert_eq!(l.mods.len(), 1, "optional is not installed automatically");
         let l = resolve(&c, &want(&["a", "b"]), "g", &gv()).unwrap();

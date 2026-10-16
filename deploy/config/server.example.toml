@@ -1,0 +1,55 @@
+# Warpzone server configuration. Every option: docs/self-hosting.md#configuration
+
+# Shown on the website and returned by /api/v1/info.
+name = "Warpzone"
+
+# Public HTTPS URL of this instance (your reverse proxy terminates TLS).
+public_url = "https://warpzone.example.org"
+
+# The daemon listens on loopback; a reverse proxy forwards to it.
+http_listen = "127.0.0.1:2998"
+
+# One dual-stack UDP socket for STUN, hole-punch coordination and the relay.
+# It must be reachable from the internet on both IPv4 and IPv6 if you can.
+udp_listen = "[::]:3478"
+
+# Public UDP addresses clients should use. Leave empty to derive it from
+# public_url's host name. List literal addresses when the host name has no
+# AAAA record but the machine has IPv6 (clients then still learn their IPv6).
+udp_public = []
+
+data_dir = "/data"
+games_dir = "/config/games"
+staff_file = "/config/staff.toml"
+
+# Behind your own reverse proxy: take the client address from X-Forwarded-For.
+trust_forwarded_for = true
+
+# Optional: plain-text POST for every mod submission and report (ntfy works).
+# notify_url = "https://ntfy.sh/your-private-topic"
+
+# Optional: linked from every page footer.
+# legal_url = "https://example.org/imprint"
+
+# Where the website points for source and documentation.
+source_url = "https://github.com/jarvis-jhk/warpzone"
+
+# Download buttons for the launcher on the start page.
+[launcher]
+github = "jarvis-jhk/warpzone"
+prerelease = true
+assets = { linux = "warpzone-launcher-*-linux-x86_64.tar.gz", deck = "warpzone-launcher-*-linux-x86_64.tar.gz", windows = "warpzone-launcher-*-windows-x86_64.zip" }
+
+[limits]
+max_room_players = 64
+max_metadata_bytes = 1024
+rooms_per_account = 3
+mod_store_gb = 10
+relay_kbps = 2000
+relay_total_mbps = 100
+registrations_per_ip_per_day = 5
+logins_per_ip_per_minute = 30
+code_guesses_per_ip_per_minute = 10
+uploads_per_account_per_day = 10
+reports_per_account_per_day = 20
+max_replay_kb = 512

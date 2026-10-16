@@ -53,12 +53,25 @@ const CONNECT_GIVE_UP: Duration = Duration::from_secs(30);
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetEvent {
     /// First authenticated packet from the peer arrived.
-    Connected { peer: PeerId, relayed: bool },
+    Connected {
+        peer: PeerId,
+        relayed: bool,
+    },
     /// The path changed (relay → direct, usually).
-    PathChanged { peer: PeerId, relayed: bool },
-    Data { peer: PeerId, channel: u8, data: Vec<u8>, reliable: bool },
+    PathChanged {
+        peer: PeerId,
+        relayed: bool,
+    },
+    Data {
+        peer: PeerId,
+        channel: u8,
+        data: Vec<u8>,
+        reliable: bool,
+    },
     /// No packet for 15 s (or never connected within 30 s).
-    Lost { peer: PeerId },
+    Lost {
+        peer: PeerId,
+    },
 }
 
 /// Everything needed to reach one peer.
@@ -98,13 +111,7 @@ impl Crypto {
         hk.expand(b"warpzone-v1 host->guest", &mut h2g).expect("hkdf");
         hk.expand(b"warpzone-v1 guest->host", &mut g2h).expect("hkdf");
         let (s, r) = if role == Role::Host { (h2g, g2h) } else { (g2h, h2g) };
-        Crypto {
-            send: ChaCha20Poly1305::new(Key::from_slice(&s)),
-            recv: ChaCha20Poly1305::new(Key::from_slice(&r)),
-            ctr: 1,
-            highest: 0,
-            seen: 0,
-        }
+        Crypto { send: ChaCha20Poly1305::new(Key::from_slice(&s)), recv: ChaCha20Poly1305::new(Key::from_slice(&r)), ctr: 1, highest: 0, seen: 0 }
     }
 
     fn nonce(ctr: u64) -> [u8; 12] {

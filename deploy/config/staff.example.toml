@@ -1,0 +1,12 @@
+# Who may moderate. Values are device public keys (hex); `wz whoami` prints yours.
+# The server re-reads this file within a minute of a change.
+
+# Approve/reject/hide mods, close reports, rename accounts.
+moderators = []
+
+# Read the moderation queue and add notes (for example an automated pre-review).
+reviewers = []
+
+# Substrings no username may contain (case-insensitive). Keep the list here,
+# in your private config, rather than in a public repository.
+blocked_words = []

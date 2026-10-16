@@ -89,10 +89,3 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     c.execute_batch(SCHEMA)?;
     Ok(c)
 }
-
-#[cfg(test)]
-pub fn memory() -> Connection {
-    let c = Connection::open_in_memory().unwrap();
-    c.execute_batch(SCHEMA).unwrap();
-    c
-}
