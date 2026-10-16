@@ -1,9 +1,10 @@
 # Funny Furries — JARVIS's SDL2 rebuild of the 1999 brawler.
 # Since v0.4.0 it links libwarpzone: --warpzone-join/--warpzone-host, code
-# rooms, direct/relayed play and the three ranked queues below (tier 2). Not
-# yet: public room browser, host approval, leaderboards. Since v0.5.0 it syncs
-# mods (active.lock.json, lockfile in wz_host/wz_queue, wz_sync_mods); data
-# only (text, PNG, WAV), loaded unpacked. Merge this only once 0.5.0 is out.
+# rooms, direct/relayed play and the three ranked queues below. Since v0.5.0
+# it syncs mods (active.lock.json, lockfile in wz_host/wz_queue as ruleset,
+# wz_sync_mods); data only (text, PNG, WAV), loaded unpacked — tier 3, which
+# is what marks mods as usable. Not yet: public room browser, host approval,
+# leaderboards.
 id = "funny-furries"
 name = "Funny Furries"
 tagline = "The chaotic 1999 couch brawler, rebuilt: up to four furries, one arena, far too many weapons."
@@ -13,7 +14,7 @@ A faithful SDL2 reimplementation of Funny Furries 2 Xmas, the Click & Create bra
 Rollback online play, ranked 1 vs 1, free-for-all and 2 vs 2 come through Warpzone."""
 homepage = "https://github.com/jarvis-jhk/funny-furries"
 accent = "#f59e0b"
-tier = 2
+tier = 3
 local_players = 4
 status = "preview"
 requires = "your own copy of Funny Furries 2 Xmas — the game imports it at first start"

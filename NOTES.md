@@ -14,15 +14,15 @@
   machines and must never carry the secret; not wired there. Docker
   healthcheck failures are not reported (would need a host-side watcher).
 
-- 2026-10-16 (report t_mvb3w98cbfzls, furries lane): funny-furries [mods]
-  (arena/weapon/rules/skin/sound, 20 MiB, data only, install = "extract") is
-  on branch funny-furries-mods (check-games ok; the fields exist since 0.1.0,
-  so old clients read it). NOT merged/deployed: the released game is 0.4.0
-  without mod sync, and at tier 2 the site/launcher would show a "mods" badge
-  and archive it cannot use. Merge + push to vtt config/games/ when the
-  furries lane reports 0.5.0 released (same time as tier = 3), and only after
-  the vtt 0.1.2 deploy (the repo descriptors carry local_players). Then reply
-  to the furries lane. Showcase mod uploads need Jan's moderation.
+- 2026-10-16 (request t_mvb58cu8m4249, furries lane): Funny Furries 0.5.0
+  (mod sync) is out, so funny-furries-mods is merged and the game is tier 3
+  (tier >= 3 is what marks mods usable in capabilities(); room browser, host
+  approval and leaderboards are still missing, see the descriptor comment).
+  vtt config/games/funny-furries.toml is this version WITHOUT local_players
+  (server still 0.1.1; checked with v0.1.1 check-games) and is live; the 0.1.2
+  deploy's "push games/*.toml" step restores the repo version. Furries lane
+  told to run the three example mod uploads (FurryWorkshop, id 2); they then
+  wait for Jan's moderation.
 
 - 2026-10-16 (Jan's laptop): Play failed for super-mario-land-port ("cannot
   find the Super Mario Land executable"): the descriptor had no [launch] exec
