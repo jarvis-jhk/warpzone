@@ -1,5 +1,14 @@
 # Notes
 
+- 2026-10-17 (report t_mvbq58qs35wt4z, spacehog lane): PR #13 (spacehog tier 2,
+  join/host, max_players 2, no [mods]/leaderboards) NOT merged yet: it waits for
+  github.com/jarvis-jhk/spacehog/releases/tag/v0.2.0, which does not exist
+  (latest v0.1.2). It conflicts with main's `fetch` description text; the
+  resolved merge is on local branch pr13-ready (check-games: 9 ok). When v0.2.0
+  is out: merge pr13-ready into main. vtt deploy: vtt runs 0.1.2, which rejects
+  `fetch`, so push the tier-2 descriptor with the `fetch` entries stripped (as
+  vtt's current copy is), or all of main's spacehog.toml once 0.1.3 is deployed.
+
 - 2026-10-17 (requests t_mvbnkjww2aer1t, t_mvbnmbg02coger, t_mvbnncjq2d7bh8,
   Jan): diablo2-couch has linux/deck again (v0.0.5 tarball needs glibc 2.28;
   exec is d2d, like d2d.exe on Windows, not the Qt d2d-launcher). THE 0.1.2
