@@ -1,5 +1,19 @@
 # Notes
 
+- 2026-10-17 (request t_mvbmjbcg1yxavd, Jan): the launcher/`wz find-data`
+  now look into .zip files (and one level of zips inside) in Downloads,
+  Desktop and chosen folders and unpack only the match into
+  <home>/unpacked/<zip>-<hash>/ (cached by path+size+mtime). Verified with the
+  real DOS Games Archive downloads: sh_dos.zip (holds spacehog.zip with the
+  DATs) is found; sh_install.zip holds only sh_install.exe, a Windows
+  installer with a proprietary compressed payload (not zlib/bz2/lzma), so it
+  cannot be read; its default target C:\games\spacehog (and Wine's
+  drive_c/games) is searched now. games/spacehog.toml tells players to keep
+  sh_dos.zip and links its file page directly. Push spacehog.toml to vtt only
+  together with the launcher release carrying this (0.1.3; 0.1.2 launchers
+  do not look into zips), and keep vtt's copy without local_players until the
+  0.1.2 server deploy.
+
 - 2026-10-16 (report t_mvbbejaqh3z4a, from the opents lane): PR #7 merged
   (c967f5c, CI green on cee7e98) and merged into local main. games/opents-coop.toml
   is now the co-op campaign template with `local_players = 1` and

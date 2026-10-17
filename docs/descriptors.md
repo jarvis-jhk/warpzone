@@ -155,6 +155,14 @@ known = [
 ]
 ```
 
+In Downloads, on the Desktop and in folders the player chose, the launcher
+also looks into `.zip` files and zips inside them (a freeware archive that
+holds the game's original zip): only the part that matches is unpacked, once,
+into `<warpzone home>/unpacked/`, and that folder or file is what the game gets.
+So players can leave the download as it is. Installers (`.exe`) are not
+opened; their files are found after running them, also in `C:\Games` and
+Wine's `drive_c/games`.
+
 File patterns are case-insensitive globs:
 
 | Pattern | Matches |

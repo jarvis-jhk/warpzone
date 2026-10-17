@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Launcher and `wz find-data`: game files are also found inside `.zip`
+  downloads (and zips inside them) in Downloads, on the Desktop and in chosen
+  folders, e.g. the DOS Games Archive's `sh_dos.zip` for Operation Spacehog;
+  the matching part is unpacked once into `<home>/unpacked/`. Old freeware
+  installers' default `C:\Games` (and Wine's `drive_c/games`) are searched too.
+
 - Server: optional `[fault_reports]` in `server.toml` — 500s, errors in
   background jobs, a failed start and panics are POSTed as JSON to a URL of
   your choice (deduplicated and capped per hour), not only logged.

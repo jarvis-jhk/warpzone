@@ -16,9 +16,15 @@
 //! directory containing that path (`DATA/IO/IO.DAT`); `./name` matches the
 //! directory directly containing `name` (for games that want a folder).
 //!
+//! In Downloads, on the Desktop and in folders the player chose, the search
+//! also looks into `.zip` files (and zips inside them, like the DOS Games
+//! Archive's `sh_dos.zip` holding `spacehog.zip`): only the part that matches
+//! is unpacked, once, into `<home>/unpacked/`, and that copy is what is found.
+//!
 //! Searches are bounded (depth and number of entries) and read only names, so
 //! they finish in well under a second on a normal home directory.
 
+use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use warpzone_protocol::descriptor::{DataRequirement, GameDescriptor, glob_match};
 
@@ -137,6 +143,8 @@ fn roots_for(req: &DataRequirement) -> Vec<(PathBuf, String, usize)> {
                 roots.push((d, "Downloads".into(), 2));
             }
             roots.push((h.join("Desktop"), "Desktop".into(), 1));
+            // Old freeware installers default to C:\Games\<game> (e.g. sh_install.exe).
+            roots.push((h.join(".wine/drive_c/games"), "Wine".into(), 2));
         }
     }
     if cfg!(windows) {
@@ -145,6 +153,9 @@ fn roots_for(req: &DataRequirement) -> Vec<(PathBuf, String, usize)> {
             roots.push((PathBuf::from(r"C:\Program Files (x86)\GOG Galaxy\Games").join(g), "GOG".into(), 4));
             roots.push((PathBuf::from(r"C:\Program Files (x86)").join(g), "Program Files".into(), 4));
             roots.push((PathBuf::from(r"C:\Program Files").join(g), "Program Files".into(), 4));
+        }
+        if req.downloads {
+            roots.push((PathBuf::from(r"C:\Games"), "C:\\Games".into(), 2));
         }
         if req.discs {
             for d in b'D'..=b'Z' {
@@ -185,7 +196,7 @@ fn contains_ci(dir: &Path, rel: &str) -> bool {
     true
 }
 
-fn walk(dir: &Path, depth: usize, budget: &mut usize, req: &DataRequirement, source: &str, out: &mut Vec<Found>) {
+fn walk(dir: &Path, depth: usize, budget: &mut usize, req: &DataRequirement, source: &str, zips: Option<&Path>, out: &mut Vec<Found>) {
     if *budget == 0 {
         return;
     }
@@ -205,15 +216,167 @@ fn walk(dir: &Path, depth: usize, budget: &mut usize, req: &DataRequirement, sou
         if ft.is_file() {
             if req.files.iter().filter(|p| !p.contains('/')).any(|p| matches_ci(p, &name)) {
                 out.push(Found { path: e.path(), source: source.into() });
+            } else if let Some(cache) = zips
+                && name.to_lowercase().ends_with(".zip")
+            {
+                look_in_zip(&e.path(), req, source, cache, out);
             }
         } else if ft.is_dir() && depth > 0 && !name.starts_with('.') {
-            walk(&e.path(), depth - 1, budget, req, source, out);
+            walk(&e.path(), depth - 1, budget, req, source, zips, out);
+        }
+    }
+}
+
+/// Zips up to this size are looked into.
+const MAX_ZIP: u64 = 1 << 30;
+/// A zip inside a zip is read into memory up to this size.
+const MAX_NESTED_ZIP: u64 = 64 << 20;
+/// What one match may unpack to.
+const MAX_UNPACKED: u64 = 1 << 30;
+const MAX_ENTRIES: usize = 20_000;
+
+/// A match inside a zip: the chain of nested zips leading to it, and the
+/// matching entry (a file pattern) or the directory prefix (a `/` pattern,
+/// `""` for the archive's top level).
+#[derive(Debug, Clone, PartialEq)]
+struct ZipMatch {
+    nested: Vec<String>,
+    entry: String,
+    dir: bool,
+}
+
+/// Entry names of `z` (without directory entries), as stored and with `/` separators.
+fn zip_files<R: Read + Seek>(z: &zip::ZipArchive<R>) -> Vec<(String, String)> {
+    z.file_names().flatten().filter(|n| !n.ends_with('/') && !n.ends_with('\\')).map(|n| (n.to_string(), n.replace('\\', "/"))).collect()
+}
+
+/// Matches for `req` in `z`, looking one level into zips inside it.
+fn zip_matches<R: Read + Seek>(z: &mut zip::ZipArchive<R>, req: &DataRequirement, nest: usize) -> Vec<ZipMatch> {
+    let mut out: Vec<ZipMatch> = Vec::new();
+    if z.len() > MAX_ENTRIES {
+        return out;
+    }
+    let names = zip_files(z);
+    for (_, name) in &names {
+        let parts: Vec<&str> = name.split('/').collect();
+        let base = parts[parts.len() - 1];
+        if req.files.iter().filter(|p| !p.contains('/')).any(|p| matches_ci(p, base)) {
+            out.push(ZipMatch { nested: vec![], entry: name.clone(), dir: false });
+        }
+        for pat in req.files.iter().filter(|p| p.contains('/')) {
+            let segs: Vec<&str> = pat.trim_start_matches("./").split('/').collect();
+            if parts.len() >= segs.len() && parts[parts.len() - segs.len()..].iter().zip(&segs).all(|(n, s)| matches_ci(s, n)) {
+                let entry = parts[..parts.len() - segs.len()].join("/");
+                if !out.iter().any(|m| m.dir && m.entry == entry) {
+                    out.push(ZipMatch { nested: vec![], entry, dir: true });
+                }
+            }
+        }
+    }
+    if nest > 0 {
+        for (raw, _) in names.iter().filter(|(_, n)| n.to_lowercase().ends_with(".zip")) {
+            let Ok(mut e) = z.by_name(raw) else { continue };
+            if e.size() > MAX_NESTED_ZIP {
+                continue;
+            }
+            let mut buf = Vec::with_capacity(e.size() as usize);
+            if (&mut e).take(MAX_NESTED_ZIP).read_to_end(&mut buf).is_err() {
+                continue;
+            }
+            drop(e);
+            let Ok(mut inner) = zip::ZipArchive::new(std::io::Cursor::new(buf)) else { continue };
+            for mut m in zip_matches(&mut inner, req, nest - 1) {
+                m.nested.insert(0, raw.clone());
+                out.push(m);
+            }
+        }
+    }
+    out
+}
+
+/// Unpack the entries of `m` (the matching file, or everything under the
+/// directory prefix) into `dest`, keeping their paths inside the archive.
+fn unpack_match<R: Read + Seek>(z: &mut zip::ZipArchive<R>, m: &ZipMatch, dest: &Path) -> std::io::Result<()> {
+    let bad = |msg: &str| std::io::Error::other(msg.to_string());
+    if let Some((first, rest)) = m.nested.split_first() {
+        let mut e = z.by_name(first).map_err(|e| bad(&e.to_string()))?;
+        let mut buf = Vec::new();
+        (&mut e).take(MAX_NESTED_ZIP).read_to_end(&mut buf)?;
+        drop(e);
+        let mut inner = zip::ZipArchive::new(std::io::Cursor::new(buf)).map_err(|e| bad(&e.to_string()))?;
+        return unpack_match(&mut inner, &ZipMatch { nested: rest.to_vec(), ..m.clone() }, dest);
+    }
+    let prefix = if m.entry.is_empty() { String::new() } else { format!("{}/", m.entry) };
+    let mut total = 0u64;
+    for i in 0..z.len() {
+        let mut e = z.by_index(i).map_err(|e| bad(&e.to_string()))?;
+        let name = e.name().map_err(|e| bad(&e.to_string()))?.replace('\\', "/");
+        let wanted = if m.dir { name.starts_with(&prefix) } else { name == m.entry };
+        if !wanted || e.is_dir() || e.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000) {
+            continue;
+        }
+        let rel = e.enclosed_name().ok_or_else(|| bad("unsafe path in zip"))?;
+        total += e.size();
+        if total > MAX_UNPACKED {
+            return Err(bad("unpacks to more than 1 GiB"));
+        }
+        let out = dest.join(rel);
+        if let Some(p) = out.parent() {
+            std::fs::create_dir_all(p)?;
+        }
+        let declared = e.size();
+        let copied = std::io::copy(&mut (&mut e).take(declared + 1), &mut std::fs::File::create(&out)?)?;
+        if copied > declared {
+            return Err(bad("zip entry larger than declared"));
+        }
+    }
+    Ok(())
+}
+
+/// Look into the zip at `path` and add every match for `req`, unpacked into
+/// `cache` (once per zip version and match).
+fn look_in_zip(path: &Path, req: &DataRequirement, source: &str, cache: &Path, out: &mut Vec<Found>) {
+    use sha2::Digest as _;
+    let Ok(meta) = std::fs::metadata(path) else { return };
+    if meta.len() > MAX_ZIP {
+        return;
+    }
+    let Ok(f) = std::fs::File::open(path) else { return };
+    let Ok(mut z) = zip::ZipArchive::new(std::io::BufReader::new(f)) else { return };
+    let zip_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let stem: String = zip_name
+        .trim_end_matches(".zip")
+        .trim_end_matches(".ZIP")
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || "._-".contains(c) { c } else { '_' })
+        .collect();
+    let mtime = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
+    for m in zip_matches(&mut z, req, 1) {
+        let key = format!("{}\n{}\n{}\n{}\n{}\n{}", path.display(), meta.len(), mtime, m.nested.join("\n"), m.entry, m.dir);
+        let hash = hex::encode(sha2::Sha256::digest(key.as_bytes()));
+        let dest = cache.join(format!("{stem}-{}", &hash[..12]));
+        if !dest.is_dir() {
+            let tmp = dest.with_extension("partial");
+            let _ = std::fs::remove_dir_all(&tmp);
+            if std::fs::create_dir_all(&tmp).is_err() || unpack_match(&mut z, &m, &tmp).is_err() || std::fs::rename(&tmp, &dest).is_err() {
+                let _ = std::fs::remove_dir_all(&tmp);
+                continue;
+            }
+        }
+        let found = if m.entry.is_empty() { dest } else { dest.join(&m.entry) };
+        if !out.iter().any(|f| f.path == found) {
+            out.push(Found { path: found, source: format!("{zip_name} in {source}") });
         }
     }
 }
 
 /// Search the usual places for `req`. `extra` adds folders the player chose.
 pub fn find(req: &DataRequirement, extra: &[PathBuf]) -> Vec<Found> {
+    find_with(req, extra, &crate::paths::home().join("unpacked"))
+}
+
+/// [`find`], unpacking matches in zips into `cache`.
+fn find_with(req: &DataRequirement, extra: &[PathBuf], cache: &Path) -> Vec<Found> {
     let mut out = Vec::new();
     let mut roots = roots_for(req);
     for e in extra {
@@ -221,7 +384,9 @@ pub fn find(req: &DataRequirement, extra: &[PathBuf]) -> Vec<Found> {
     }
     for (root, source, depth) in roots {
         let mut budget = 20_000;
-        walk(&root, depth, &mut budget, req, &source, &mut out);
+        // Zips are looked into where players put downloads, not in game installs.
+        let zips = matches!(source.as_str(), "Downloads" | "Desktop" | "Chosen folder").then_some(cache);
+        walk(&root, depth, &mut budget, req, &source, zips, &mut out);
     }
     out.dedup_by(|a, b| a.path == b.path);
     out
@@ -396,6 +561,52 @@ mod tests {
         assert!(f[0].path.ends_with("DIABDAT.MPQ"));
         let f = find(&req(&["DATA/IO/IO.DAT"]), &[d.path().to_path_buf()]);
         assert_eq!(f[0].path, d.path().join("game"));
+    }
+
+    fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        use std::io::Write;
+        let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (n, data) in entries {
+            z.start_file(*n, zip::write::SimpleFileOptions::default()).unwrap();
+            z.write_all(data).unwrap();
+        }
+        z.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn finds_files_inside_zips() {
+        let d = tempfile::tempdir().unwrap();
+        let (dl, cache) = (d.path().join("dl"), d.path().join("cache"));
+        std::fs::create_dir_all(&dl).unwrap();
+        // Like the DOS Games Archive's sh_dos.zip: the game's own zip inside a zip.
+        let inner = zip_bytes(&[("SH.EXE", b"exe"), ("SPACEHOG.DAT", b"dat"), ("SHLEV.DAT", b"lev")]);
+        std::fs::write(dl.join("sh_dos.zip"), zip_bytes(&[("SPACEHOG.BAT", b"bat"), ("spacehog.zip", &inner)])).unwrap();
+        // Unrelated zips and ones with the files in a folder.
+        std::fs::write(dl.join("other.zip"), zip_bytes(&[("readme.txt", b"x")])).unwrap();
+        std::fs::write(dl.join("folder.zip"), zip_bytes(&[("Game/Data/spacehog.dat", b"dat2"), ("Game/x.txt", b"x"), ("y.txt", b"y")])).unwrap();
+        let dirs = std::slice::from_ref(&dl);
+        let mut r = req(&["./SPACEHOG.DAT"]);
+        r.downloads = true;
+        let f = find_with(&r, dirs, &cache);
+        assert_eq!(f.len(), 2, "{f:?}");
+        let top = f.iter().find(|f| f.source.starts_with("sh_dos.zip")).unwrap();
+        assert_eq!(std::fs::read(top.path.join("SPACEHOG.DAT")).unwrap(), b"dat");
+        assert_eq!(std::fs::read(top.path.join("SHLEV.DAT")).unwrap(), b"lev");
+        assert!(!top.path.join("SPACEHOG.BAT").exists());
+        let sub = f.iter().find(|f| f.source.starts_with("folder.zip")).unwrap();
+        assert!(sub.path.ends_with("Game/Data"));
+        assert_eq!(std::fs::read(sub.path.join("spacehog.dat")).unwrap(), b"dat2");
+        assert!(!sub.path.join("../../y.txt").exists());
+        // A second scan reuses the unpacked copy.
+        assert_eq!(find_with(&r, dirs, &cache), f);
+        // File patterns find the single file.
+        let f = find_with(&req(&["shlev.dat"]), dirs, &cache);
+        assert_eq!(f.len(), 1);
+        assert_eq!(std::fs::read(&f[0].path).unwrap(), b"lev");
+        // Unsafe entries unpack nothing.
+        std::fs::write(dl.join("evil.zip"), zip_bytes(&[("../SPACEHOG.DAT", b"no")])).unwrap();
+        assert_eq!(find_with(&r, dirs, &cache).len(), 2);
+        assert!(!cache.join("SPACEHOG.DAT").exists() && !d.path().join("SPACEHOG.DAT").exists());
     }
 
     #[test]

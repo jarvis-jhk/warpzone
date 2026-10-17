@@ -9,7 +9,7 @@ tagline = "The 2000 freeware shoot'em up, ported natively and verified tick by t
 description = """
 A native port of Operation Spacehog 1.01 by Free Lunch Design: same logic, timing, graphics and FM music as the DOS original, with a resizable window, fullscreen and gamepads for both players. Linux, Windows and the Steam Deck.
 
-The game data is the original freeware release, free to download; the launcher finds it in your Downloads folder. Warpzone will bring online co-op, score leaderboards and mods."""
+The game data is the original freeware release, free to download: get sh_dos.zip and leave it in your Downloads folder, the launcher finds the files inside it. Warpzone will bring online co-op, score leaderboards and mods."""
 homepage = "https://github.com/jarvis-jhk/spacehog"
 accent = "#a855f7"
 tier = 0
@@ -58,9 +58,11 @@ seasonal = true
 [[data]]
 id = "game"
 label = "Operation Spacehog 1.01 data (SPACEHOG.DAT, SHLEV.DAT, SHBGS.DAT, SHSND.DAT)"
-description = "The original freeware release by Free Lunch Design. Unpack its zip anywhere, for example in Downloads; the game reads the files from there."
+description = "The original freeware release by Free Lunch Design. Download sh_dos.zip and leave it in Downloads (or unpack it anywhere there): the launcher finds the files, also inside the zip. sh_install.zip is a Windows installer: its files are found only after running it (C:\\games\\spacehog), so sh_dos.zip is easier."
 files = ["./SPACEHOG.DAT"]
 discs = false
-free = [{ label = "DOS Games Archive (freeware)", url = "https://www.dosgamesarchive.com/download/operation-spacehog" }]
+free = [{ label = "sh_dos.zip from the DOS Games Archive (freeware)", url = "https://www.dosgamesarchive.com/file/operation-spacehog/sh_dos" }]
 # No import or copy: the launcher passes the folder it found as WARPZONE_DATA_GAME
-# on every start, and the game loads the files from there.
+# on every start, and the game loads the files from there. sh_dos.zip holds
+# spacehog.zip (the original release); the launcher (0.1.3+) looks into both and
+# unpacks the game files into <warpzone home>/unpacked/.
