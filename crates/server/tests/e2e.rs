@@ -53,6 +53,10 @@ install = "extract"
 id = "1v1"
 title = "1 vs 1"
 teams = 2
+[[ladder]]
+id = "ffa"
+title = "Free-for-all (4)"
+teams = 4
 [[leaderboards]]
 id = "any"
 title = "Any%"
@@ -330,6 +334,48 @@ fn ladder_and_boards() {
     assert!(!r.improved && r.best == 61_000);
     let b = api.board("demo", "any", "stock", "all").unwrap();
     assert_eq!(b.entries[0].username, "LadderOne");
+}
+
+/// Four players matched at once all join the room at the same moment, so the
+/// host hears about guests through events racing its own join. Everybody must
+/// end up connected to the host, and stay connected.
+#[test]
+fn ranked_ffa_four_players_connect() {
+    let s = start();
+    let mut cs: Vec<Client> = (0..4).map(|i| client(&s, &format!("Tester{i}"))).collect();
+    for c in cs.iter_mut() {
+        wait_ready(c);
+    }
+    for c in cs.iter_mut() {
+        c.queue("ffa", "stock");
+    }
+    let mut host = None;
+    let mut connected = [0usize; 4];
+    let mut left = Vec::new();
+    let t = Instant::now();
+    // Connect, then keep polling past the 15 s peer timeout.
+    while t.elapsed() < Duration::from_secs(25) {
+        for (k, c) in cs.iter_mut().enumerate() {
+            c.poll();
+            while let Some(e) = c.next_event() {
+                match e {
+                    Event::MatchFound { host: true, .. } => host = Some(k),
+                    Event::PeerConnected { .. } => connected[k] += 1,
+                    Event::PeerLeft { account, .. } => left.push((k, account)),
+                    Event::Error { op, message, .. } => panic!("client {k} error in {op}: {message}"),
+                    _ => {}
+                }
+            }
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let host = host.expect("a host was chosen");
+    assert!(left.is_empty(), "nobody left, but got PeerLeft: {left:?}");
+    for (k, c) in cs.iter().enumerate() {
+        let want = if k == host { 3 } else { 1 };
+        assert_eq!(connected[k], want, "client {k} (host {host}) connections");
+        assert_eq!(c.peers().len(), want, "client {k} (host {host}) peers");
+    }
 }
 
 fn zip_with(path: &Path, files: &[(&str, &str)]) {

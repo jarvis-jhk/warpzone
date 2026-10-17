@@ -1,5 +1,17 @@
 # Notes
 
+- 2026-10-17 (report t_mvc4macrq7ykb, furries lane): ranked 4-player lobby
+  hang (FF CI test_4_ranked_ffa / test_5_ranked_2v2). Cause: client.rs
+  dropped room events (PeerJoined) that the events thread delivered before
+  the join answer from the API thread, so the host never knew the last
+  guest. Fix in libwarpzone: early room events buffered (60 s) and replayed
+  on join, duplicate PeerJoined deduplicated, a peer lost by timeout re-added
+  once (PeerLeft then PeerJoined; NetEvent::Lost has `bye`). Why host<->guest
+  links went silent for 15 s in that run is not proven (all-loopback, FF
+  had auto_join off and joined once); the retry covers it. e2e test
+  ranked_ffa_four_players_connect + unit tests. Ships with the next
+  libwarpzone release; FF needs to pick it up (told furries lane).
+
 - 2026-10-17 (request t_mvc38s7b0g6uv, Jan): feedback service. Server
   `POST /api/v1/feedback` (no account; game id or "warpzone"; kinds
   crash|bug|idea; kept in table `feedback`, same game+kind+title within 7 d

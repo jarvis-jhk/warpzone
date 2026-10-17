@@ -68,9 +68,11 @@ pub enum NetEvent {
         data: Vec<u8>,
         reliable: bool,
     },
-    /// No packet for 15 s (or never connected within 30 s).
+    /// No packet for 15 s (or never connected within 30 s), or the peer said
+    /// goodbye (`bye`).
     Lost {
         peer: PeerId,
+        bye: bool,
     },
 }
 
@@ -652,7 +654,7 @@ impl Net {
                     && !p.lost
                 {
                     p.lost = true;
-                    self.events.push_back(NetEvent::Lost { peer: id });
+                    self.events.push_back(NetEvent::Lost { peer: id, bye: true });
                 }
             }
             _ => {}
@@ -776,7 +778,7 @@ impl Net {
                 let silent = now.duration_since(p.last_recv);
                 if (p.path.is_some() && silent > TIMEOUT) || (p.path.is_none() && age > CONNECT_GIVE_UP) {
                     p.lost = true;
-                    self.events.push_back(NetEvent::Lost { peer: id });
+                    self.events.push_back(NetEvent::Lost { peer: id, bye: false });
                     continue;
                 }
             }

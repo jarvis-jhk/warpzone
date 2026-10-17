@@ -25,7 +25,7 @@ use crate::identity::Identity;
 use crate::modstore::ModStore;
 use crate::net::{Net, NetEvent, PeerId, PeerSpec};
 use crate::{Error, Result};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -198,6 +198,10 @@ struct RoomState {
     host: bool,
     session: PeerSession,
     peers: HashMap<i64, PeerId>,
+    /// What the server told us about each peer, to re-add one that timed out.
+    infos: HashMap<i64, PeerInfo>,
+    /// Peers re-added after a timeout that have not connected since.
+    retried: HashSet<i64>,
     last_beat: Instant,
     sent_candidates: Vec<String>,
 }
@@ -213,6 +217,27 @@ pub struct Client {
     stop: Arc<AtomicBool>,
     identity: Arc<Identity>,
     pending_net: Vec<Msg>,
+    /// Room events that arrived before the room's join answer (the events
+    /// stream and the join request race; ranked rooms are joined by all
+    /// players at once). Replayed when we join that room.
+    early: Vec<(Instant, ServerEvent)>,
+}
+
+/// How long an early room event is kept, and how many.
+const EARLY_KEEP: Duration = Duration::from_secs(60);
+const EARLY_MAX: usize = 256;
+
+/// The room a room-scoped server event belongs to.
+fn event_room(e: &ServerEvent) -> Option<&str> {
+    match e {
+        ServerEvent::Knock { room, .. }
+        | ServerEvent::PeerJoined { room, .. }
+        | ServerEvent::PeerLeft { room, .. }
+        | ServerEvent::PeerCandidates { room, .. }
+        | ServerEvent::RoomClosed { room }
+        | ServerEvent::Kicked { room, .. } => Some(room),
+        _ => None,
+    }
 }
 
 impl Client {
@@ -227,7 +252,7 @@ impl Client {
         let stop = Arc::new(AtomicBool::new(false));
         spawn_service(api.clone(), cfg.clone(), cmd_rx, msg_tx, stop.clone());
         tx.send(Cmd::Login).ok();
-        Ok(Client { cfg, api, tx, rx, net: None, events: VecDeque::new(), room: None, stop, identity, pending_net: Vec::new() })
+        Ok(Client { cfg, api, tx, rx, net: None, events: VecDeque::new(), room: None, stop, identity, pending_net: Vec::new(), early: Vec::new() })
     }
 
     /// The HTTP API, for anything this session type does not wrap. Its calls
@@ -287,6 +312,8 @@ impl Client {
     /// after `#`), or a room we are already approved for (launcher hand-off).
     pub fn join(&mut self, room: &str, code: Option<&str>, secret: Option<&str>) {
         self.leave_current();
+        // An old kick or close must not end the visit we start now.
+        self.early.retain(|(_, e)| !(matches!(e, ServerEvent::RoomClosed { .. } | ServerEvent::Kicked { .. }) && event_room(e) == Some(room)));
         let req = JoinRequest { code: code.map(String::from), invite: secret.map(String::from), candidates: self.candidates() };
         self.cmd(Cmd::Join { room: room.into(), req });
     }
@@ -453,6 +480,13 @@ impl Client {
     }
 
     fn add_peer(&mut self, p: &PeerInfo) {
+        // The same announcement twice (join answer and an early event): keep
+        // the session we have. A changed one (the peer re-joined): start over.
+        match self.room.as_ref().and_then(|r| r.infos.get(&p.account)) {
+            Some(known) if known == p && self.room.as_ref().is_some_and(|r| r.peers.contains_key(&p.account)) => return,
+            Some(_) => self.drop_peer(p.account),
+            None => {}
+        }
         let Some(room) = self.room.as_mut() else { return };
         let Some(net) = self.net.as_mut() else { return };
         let spec = PeerSpec {
@@ -467,6 +501,7 @@ impl Client {
         };
         if let Ok(id) = net.add_peer(spec) {
             room.peers.insert(p.account, id);
+            room.infos.insert(p.account, p.clone());
             self.events.push_back(Event::PeerJoined { peer: id, account: p.account, username: p.username.clone() });
         }
     }
@@ -480,6 +515,8 @@ impl Client {
             host,
             session: j.session.clone(),
             peers: HashMap::new(),
+            infos: HashMap::new(),
+            retried: HashSet::new(),
             last_beat: Instant::now(),
             sent_candidates: self.candidates(),
         });
@@ -487,10 +524,17 @@ impl Client {
         for p in &j.peers {
             self.add_peer(p);
         }
+        let (mine, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut self.early).into_iter().partition(|(_, e)| event_room(e) == Some(j.room.id.as_str()));
+        self.early = rest;
+        for (_, e) in mine {
+            self.on_server(e);
+        }
     }
 
     fn drop_peer(&mut self, account: i64) {
         let Some(room) = self.room.as_mut() else { return };
+        room.infos.remove(&account);
+        room.retried.remove(&account);
         if let Some(id) = room.peers.remove(&account) {
             if let Some(n) = self.net.as_mut() {
                 n.remove_peer(id);
@@ -501,6 +545,16 @@ impl Client {
 
     fn on_server(&mut self, e: ServerEvent) {
         let in_room = |r: &str, s: &Option<RoomState>| s.as_ref().is_some_and(|x| x.id == r);
+        if let Some(r) = event_room(&e)
+            && !in_room(r, &self.room)
+        {
+            self.early.retain(|(t, _)| t.elapsed() < EARLY_KEEP);
+            if self.early.len() >= EARLY_MAX {
+                self.early.remove(0);
+            }
+            self.early.push((Instant::now(), e));
+            return;
+        }
         match e {
             ServerEvent::Knock { room, knock, account, username } if in_room(&room, &self.room) => {
                 self.events.push_back(Event::Knock { knock, account, username });
@@ -569,21 +623,20 @@ impl Client {
         }
         let Some(net) = self.net.as_mut() else { return };
         net.poll();
-        while let Some(e) = net.next_event() {
+        while let Some(e) = self.net.as_mut().and_then(|n| n.next_event()) {
             match e {
-                NetEvent::Connected { peer, relayed } => self.events.push_back(Event::PeerConnected { peer, relayed }),
+                NetEvent::Connected { peer, relayed } => {
+                    if let Some(r) = self.room.as_mut() {
+                        r.retried.retain(|a| r.peers.get(a) != Some(&peer));
+                    }
+                    self.events.push_back(Event::PeerConnected { peer, relayed })
+                }
                 NetEvent::PathChanged { peer, relayed } => self.events.push_back(Event::PeerPathChanged { peer, relayed }),
                 NetEvent::Data { peer, channel, data, reliable } => self.events.push_back(Event::PeerData { peer, channel, data, reliable }),
-                NetEvent::Lost { peer } => {
-                    let account = net.peer_account(peer).unwrap_or(0);
-                    if let Some(r) = self.room.as_mut() {
-                        r.peers.retain(|_, p| *p != peer);
-                    }
-                    net.remove_peer(peer);
-                    self.events.push_back(Event::PeerLeft { peer, account });
-                }
+                NetEvent::Lost { peer, bye } => self.on_lost(peer, bye),
             }
         }
+        let Some(net) = self.net.as_mut() else { return };
         // Heartbeats (host) and candidate updates (STUN finished later).
         let cands = net.candidates();
         if let Some(r) = self.room.as_mut() {
@@ -600,6 +653,31 @@ impl Client {
                 r.sent_candidates = cands.clone();
                 let _ = self.tx.send(Cmd::Candidates { room: r.id.clone(), candidates: cands });
             }
+        }
+    }
+
+    /// A peer went silent or said goodbye. One that timed out but is still a
+    /// member (as far as we know) gets one fresh handshake: the game sees
+    /// `PeerLeft` and then `PeerJoined` again. The server's `PeerLeft` ends it.
+    fn on_lost(&mut self, peer: PeerId, bye: bool) {
+        let Some(net) = self.net.as_mut() else { return };
+        let account = net.peer_account(peer).unwrap_or(0);
+        net.remove_peer(peer);
+        let mut retry = None;
+        if let Some(r) = self.room.as_mut()
+            && r.peers.get(&account) == Some(&peer)
+        {
+            r.peers.remove(&account);
+            let info = r.infos.remove(&account);
+            if !bye && r.retried.insert(account) {
+                retry = info;
+            } else {
+                r.retried.remove(&account);
+            }
+        }
+        self.events.push_back(Event::PeerLeft { peer, account });
+        if let Some(p) = retry {
+            self.add_peer(&p);
         }
     }
 
@@ -865,5 +943,76 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         panic!("no event while offline");
+    }
+
+    fn offline_client() -> Client {
+        let mut cfg = Config::new("test", "0");
+        cfg.server = "http://127.0.0.1:9".into();
+        cfg.identity = Some(Arc::new(Identity::generate()));
+        let mut c = Client::new(cfg).unwrap();
+        let server_key = Identity::generate().public_hex();
+        c.net = Some(Net::new(c.identity.clone(), &["127.0.0.1:9".into()], &server_key).unwrap());
+        c
+    }
+
+    fn peer(account: i64) -> PeerInfo {
+        serde_json::from_value(serde_json::json!({
+            "account": account, "username": format!("P{account}"), "key": Identity::generate().public_hex(),
+            "role": "guest", "candidates": ["127.0.0.1:9"], "relay": { "channel": account, "side": 0, "token": "00".repeat(16) }
+        }))
+        .unwrap()
+    }
+
+    fn joined(room: &str, peers: Vec<PeerInfo>) -> Joined {
+        let info = serde_json::json!({
+            "id": room, "game": "test", "game_version": "0", "name": "r", "host": "P1", "players": 1, "max_players": 4,
+            "visibility": "public", "entry": "open", "audience": {}, "ranked": true, "staged": false,
+            "metadata": {}, "members": [], "created": 0
+        });
+        Joined { room: serde_json::from_value(info).unwrap(), session: PeerSession { ticket: "t".into(), role: Role::Host }, peers }
+    }
+
+    fn joined_accounts(c: &mut Client) -> Vec<i64> {
+        std::iter::from_fn(|| c.next_event())
+            .filter_map(|e| match e {
+                Event::PeerJoined { account, .. } => Some(account),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Ranked rooms: a guest's PeerJoined can overtake the host's own join answer.
+    #[test]
+    fn room_events_before_the_join_answer_are_kept() {
+        let mut c = offline_client();
+        let (a, b) = (peer(2), peer(3));
+        c.handle_msg(Msg::Server(ServerEvent::PeerJoined { room: "other".into(), peer: peer(9) }));
+        c.handle_msg(Msg::Server(ServerEvent::PeerJoined { room: "r1".into(), peer: a.clone() }));
+        c.handle_msg(Msg::Server(ServerEvent::PeerJoined { room: "r1".into(), peer: b.clone() }));
+        c.handle_msg(Msg::Joined { joined: joined("r1", vec![a.clone()]), host: true });
+        assert_eq!(joined_accounts(&mut c), vec![2, 3], "a once, b from the early event, nothing from the other room");
+        c.handle_msg(Msg::Server(ServerEvent::PeerJoined { room: "r1".into(), peer: a.clone() }));
+        assert!(joined_accounts(&mut c).is_empty(), "the same announcement again changes nothing");
+        assert_eq!(c.peers().len(), 2);
+    }
+
+    /// A peer that timed out but is still a member is tried once more.
+    #[test]
+    fn a_timed_out_peer_gets_one_more_handshake() {
+        let mut c = offline_client();
+        c.handle_msg(Msg::Joined { joined: joined("r1", vec![peer(2)]), host: true });
+        let _ = joined_accounts(&mut c);
+        let first = c.peers()[0];
+        c.on_lost(first, false);
+        let second = c.peers()[0];
+        assert_ne!(first, second);
+        let ev: Vec<Event> = std::iter::from_fn(|| c.next_event()).collect();
+        assert!(matches!(ev.as_slice(), [Event::PeerLeft { account: 2, .. }, Event::PeerJoined { account: 2, .. }]), "{ev:?}");
+        c.on_lost(second, false);
+        assert!(c.peers().is_empty(), "only once until it connects");
+        c.handle_msg(Msg::Joined { joined: joined("r2", vec![peer(2)]), host: true });
+        let p = c.peers()[0];
+        c.on_lost(p, true);
+        assert!(c.peers().is_empty(), "a goodbye is final");
     }
 }

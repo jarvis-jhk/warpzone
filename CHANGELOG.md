@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Rooms: a host no longer misses a player who joins while its own join is
+  still on the way (ranked rooms, where everybody joins at once after a match
+  is found): room events that arrive before the join answer are kept and
+  applied once it is there. The same peer announced twice keeps its session.
+  A peer that times out while still in the room gets one fresh handshake
+  (the game sees `PeerLeft`, then `PeerJoined` again) instead of being lost
+  for good. Fixes ranked 4-player lobbies hanging.
+
 - Feedback: `POST /api/v1/feedback` takes crashes, problems and ideas for a
   game or for Warpzone itself, no account needed. The server keeps them
   (identical titles are counted), shows them to staff (`wz feedback`) and,
