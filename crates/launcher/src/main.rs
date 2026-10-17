@@ -43,8 +43,33 @@ fn render_art(dir: &std::path::Path) {
     }
 }
 
+/// The launcher's own crashes go to the server as feedback for Warpzone
+/// (unless the player turned crash reports off).
+fn report_own_crashes() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        previous(info);
+        let settings = settings::Settings::load();
+        if !settings.crash_reports {
+            return;
+        }
+        let msg = info.payload().downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| info.payload().downcast_ref::<String>().cloned()).unwrap_or_default();
+        let at = info.location().map(|l| format!(" at {}:{}", l.file(), l.line())).unwrap_or_default();
+        let trace = std::backtrace::Backtrace::force_capture();
+        report_own(&settings, &format!("launcher panic{at}"), &format!("{msg}\n\n{trace}"));
+    }));
+}
+
+fn report_own(settings: &settings::Settings, title: &str, detail: &str) {
+    let api = warpzone_core::api::Api::new(&settings.server(), std::sync::Arc::new(warpzone_core::identity::Identity::generate()));
+    let client = warpzone_core::feedback::client_name("warpzone-launcher", env!("CARGO_PKG_VERSION"));
+    let req = warpzone_core::feedback::request("warpzone", "crash", title, detail, Some(env!("CARGO_PKG_VERSION")), &client);
+    let _ = warpzone_core::feedback::send(&api, &req);
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    report_own_crashes();
     if let Some(i) = args.iter().position(|a| a == "--render-art") {
         render_art(std::path::Path::new(args.get(i + 1).map(String::as_str).unwrap_or("art")));
         return;
@@ -129,6 +154,10 @@ fn main() {
     );
     if let Err(e) = result {
         eprintln!("warpzone: {e}");
+        let settings = settings::Settings::load();
+        if settings.crash_reports {
+            report_own(&settings, "launcher could not open its window", &e.to_string());
+        }
         std::process::exit(1);
     }
 }

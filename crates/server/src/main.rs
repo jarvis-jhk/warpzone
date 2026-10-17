@@ -15,6 +15,7 @@ mod config;
 mod db;
 mod error;
 mod faults;
+mod feedback;
 mod ladder;
 mod modstore;
 mod relay;
@@ -91,7 +92,7 @@ async fn info(State(s): State<AppState>) -> Json<ServerInfo> {
         server_key: s.server_key_hex.clone(),
         public_url: s.cfg.public_url.clone(),
         udp: udp_public(&s.cfg),
-        features: vec!["rooms".into(), "relay".into(), "ladder".into(), "leaderboards".into(), "mods".into()],
+        features: vec!["rooms".into(), "relay".into(), "ladder".into(), "leaderboards".into(), "mods".into(), "feedback".into()],
         limits: Limits {
             max_room_players: s.cfg.limits.max_room_players,
             max_metadata_bytes: s.cfg.limits.max_metadata_bytes,
@@ -251,8 +252,10 @@ pub fn router(state: AppState) -> Router {
         .route("/games/{game}/lockfiles", post(modstore::put_lockfile))
         .route("/games/{game}/lockfiles/{hash}", get(modstore::get_lockfile))
         .route("/reports", post(modstore::report))
+        .route("/feedback", post(feedback::submit))
         .route("/moderation/queue", get(modstore::queue))
         .route("/moderation/mods/{game}/{name}/{version}", post(modstore::decide))
+        .route("/moderation/feedback", get(feedback::list))
         .route("/moderation/notes", post(modstore::add_note))
         .route("/moderation/reports/{id}/close", post(modstore::close_report))
         .route("/moderation/accounts/{username}/rename", post(accounts::force_rename))

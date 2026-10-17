@@ -655,6 +655,65 @@ pub struct ReportRequest {
 /// Reasons a player can pick when reporting.
 pub const REPORT_REASONS: &[&str] = &["copyright", "malware", "broken", "inappropriate", "spam", "impersonation", "other"];
 
+/// `POST /api/v1/feedback` — a crash, a problem or an idea for one game or
+/// for Warpzone itself. No account needed; the server keeps it and may pass
+/// it on to whoever looks after that game.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FeedbackRequest {
+    /// A game id, or [`FEEDBACK_WARPZONE`] for the launcher, server and library.
+    pub game: String,
+    /// One of [`FEEDBACK_KINDS`].
+    pub kind: String,
+    /// One line (at most [`FEEDBACK_TITLE_MAX`] bytes). Identical titles are
+    /// counted, not stored twice, so keep varying details out of it.
+    pub title: String,
+    /// Steps, stack trace, log lines (at most [`FEEDBACK_DETAIL_MAX`] bytes).
+    #[serde(default)]
+    pub detail: String,
+    /// Version of the game (or of Warpzone).
+    #[serde(default)]
+    pub version: Option<String>,
+    /// What sent it, e.g. `warpzone-launcher 0.1.3 (linux x86_64)`.
+    #[serde(default)]
+    pub client: Option<String>,
+}
+
+/// Answer to [`FeedbackRequest`].
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FeedbackResponse {
+    pub id: i64,
+    /// The same report was already open: it was counted, not added.
+    pub duplicate: bool,
+}
+
+/// `crash`: the program died; `bug`: something does not work; `idea`: a wish.
+pub const FEEDBACK_KINDS: &[&str] = &["crash", "bug", "idea"];
+/// The `game` for feedback about Warpzone itself.
+pub const FEEDBACK_WARPZONE: &str = "warpzone";
+pub const FEEDBACK_TITLE_MAX: usize = 160;
+pub const FEEDBACK_DETAIL_MAX: usize = 16 * 1024;
+
+/// `GET /api/v1/moderation/feedback` (staff) — the newest feedback first.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FeedbackEntry {
+    pub id: i64,
+    pub game: String,
+    pub kind: String,
+    pub title: String,
+    pub detail: String,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub client: Option<String>,
+    /// How often it came in.
+    pub count: i64,
+    pub created: i64,
+    pub last: i64,
+    /// When it was passed on (`[feedback] url`), if it was.
+    #[serde(default)]
+    pub forwarded: Option<i64>,
+}
+
 /// Reasons a moderator picks when rejecting; the author sees it.
 pub const REJECT_REASONS: &[&str] = &["copyright", "malware", "broken", "inappropriate", "spam", "wrong-category", "missing-license", "other"];
 

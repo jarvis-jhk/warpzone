@@ -315,6 +315,33 @@ wz_check_update(wz);
   `.warpzone-managed`, the launcher installed it and keeps it updated —
   **your updater must stay silent** then. Standalone installs keep yours.
 
+## Reporting crashes and problems
+
+Send your game's real faults to the server instead of a log nobody reads;
+they reach whoever looks after the game on that server:
+
+```c
+/* a caught fault: a corrupt save, a failed load, a failed assertion */
+wz_report(wz, "bug", "save file failed to load", details);
+
+/* a crash: in your crash handler write what you know to a file; send it on
+   the next start (wz_report_problem needs no client and may block) */
+wz_report_problem(NULL, "my-game", "1.2.0", "crash",
+                  "SIGSEGV in render_frame", backtrace_text);
+```
+
+* `title` is one line that stays the same for the same fault (keep
+  addresses, times and counts in `detail`): identical titles are counted,
+  not repeated.
+* Only real faults — never ordinary player mistakes — and never passwords,
+  tokens or personal data. The home directory and login name are removed.
+* Started from the launcher, a crashing game (killed by a signal, a non-zero
+  exit) is already reported with its last log lines; your own reports add
+  what only the game knows (a stack, the state it was in).
+* No libwarpzone? `wz report <game> crash "<title>" --detail file`, or POST
+  to `/api/v1/feedback` ([api](api.md)) — `WARPZONE_SERVER` holds the server
+  when the launcher started the game.
+
 ## 8. Testing locally
 
 ```sh

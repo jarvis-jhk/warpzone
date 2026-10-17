@@ -16,6 +16,7 @@
 //! | [`template`] | tier-0 launch-file templates |
 //! | [`tunnel`] | tier-0 tunnel: a game's own UDP traffic over Warpzone |
 //! | [`launch`] | how a game learns that the launcher started it |
+//! | [`feedback`] | crash, problem and idea reports |
 //!
 //! Threads: [`client::Client`] runs two service threads (HTTP requests and the
 //! event long-poll). Peer traffic is processed on the caller's thread in
@@ -23,6 +24,7 @@
 
 pub mod api;
 pub mod client;
+pub mod feedback;
 pub mod gamedata;
 pub mod identity;
 pub mod install;

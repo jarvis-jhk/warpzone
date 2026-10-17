@@ -161,6 +161,7 @@ holds events from before a client started: a new client should first call
 | POST | `/games/{game}/mods/resolve` | — | `{"game_version", "mods": ["name", "name >= 1.2"]}` → `Lockfile` or `422 unresolvable` with the dependency chain |
 | GET | `/games/{game}/lockfiles/{hash}` | — | a stored lockfile |
 | POST | `/games/{game}/lockfiles` | 🔑 | store a client-composed lockfile (every entry must be an approved version with that hash) |
+| POST | `/feedback` | — | a crash, problem or idea: `{"game": "<id>" \| "warpzone", "kind": "crash" \| "bug" \| "idea", "title", "detail"?, "version"?, "client"?}` → `{"id", "duplicate"}`. No account needed (a token is used if sent). Title one line ≤ 160 bytes, detail ≤ 16 KiB. The same game, kind and title within 7 days is counted, not stored again. Limited per address (`[feedback] per_ip_per_hour`) |
 | POST | `/reports` | 👤 | `{"target": "mod" \| "user", "game"?, "name", "version"?, "reason", "detail"?}`; reasons: `copyright, malware, broken, inappropriate, spam, impersonation, other` |
 
 ## Moderation
@@ -171,6 +172,7 @@ holds events from before a client started: a new client should first call
 | POST | `/moderation/mods/{game}/{name}/{version}` | ⚖ | `{"decision": "approve" \| "reject" \| "hide" \| "unhide", "reason"?}`; rejections need a reason from `copyright, malware, broken, inappropriate, spam, wrong-category, missing-license, other` |
 | POST | `/moderation/notes` | 🛡 | `{"game", "name", "version", "text"}` |
 | POST | `/moderation/reports/{id}/close` | ⚖ | close a report |
+| GET | `/moderation/feedback?game=` | 🛡 | the newest 200 feedback reports (`FeedbackEntry`: count, first/last seen, when it was passed on) |
 | POST | `/moderation/accounts/{username}/rename` | ⚖ | `{"username"}` — force a rename |
 
 ## Website routes

@@ -219,6 +219,11 @@ pub struct App {
     pub ctx: Option<egui::Context>,
     pub self_updated: Option<String>,
     pub confirm_delete: bool,
+    /// Feedback box: text, picked game (`None`: the last one started) and
+    /// whether it is an idea rather than a problem.
+    pub feedback_text: String,
+    pub feedback_game: Option<String>,
+    pub feedback_idea: bool,
 }
 
 fn style(ctx: &egui::Context) {
@@ -315,6 +320,9 @@ impl App {
             ctx: Some(cc.egui_ctx.clone()),
             self_updated: None,
             confirm_delete: false,
+            feedback_text: String::new(),
+            feedback_game: None,
+            feedback_idea: false,
         };
         app.login();
         app.refresh_catalog();
@@ -690,7 +698,8 @@ impl App {
                 let name = g.desc.name.clone();
                 let seen = inst.version.clone();
                 let gid = id.to_string();
-                self.settings.seen_versions.insert(gid.clone(), seen);
+                self.settings.seen_versions.insert(gid.clone(), seen.clone());
+                self.settings.last_game = Some(gid.clone());
                 self.settings.save();
                 if self.exit_after_launch {
                     std::process::exit(0);
@@ -711,6 +720,12 @@ impl App {
                             Err(e) => Some(e.to_string()),
                             _ => None,
                         };
+                        if let Ok(st) = &status
+                            && let Some(how) = crash(st)
+                            && app.settings.crash_reports
+                        {
+                            app.report_crash(&gid, &seen, &how, ran);
+                        }
                         if let Some(g) = app.game(&gid) {
                             g.running = false;
                             if let Some(why) = failed.filter(|_| ran < Duration::from_secs(30)) {
@@ -729,6 +744,63 @@ impl App {
                 g.error = Some(format!("Could not start {}: {e}", g.desc.name));
             }
         }
+    }
+
+    /// Tell the server (and so the game's developers) that a game crashed,
+    /// with the end of its log. Fire-and-forget.
+    fn report_crash(&mut self, id: &str, version: &str, how: &str, ran: Duration) {
+        let tail = install::log_tail(id, 60);
+        let detail = format!("The game ended with {how} after {} s.\n\nLast lines of its output:\n{tail}", ran.as_secs());
+        let client = warpzone_core::feedback::client_name("warpzone-launcher", env!("CARGO_PKG_VERSION"));
+        let req = warpzone_core::feedback::request(id, "crash", &format!("ended with {how}"), &detail, Some(version), &client);
+        warpzone_core::feedback::send_in_background(self.api.clone(), req);
+    }
+
+    /// Send what the player typed into the feedback box.
+    pub fn send_feedback(&mut self) {
+        let text = self.feedback_text.trim().to_string();
+        if text.is_empty() {
+            return;
+        }
+        let game = self.feedback_target();
+        let (version, name) = match self.games.iter().find(|g| g.desc.id == game) {
+            Some(g) => (g.installed.as_ref().map(|i| i.version.clone()), g.desc.name.clone()),
+            None => (Some(env!("CARGO_PKG_VERSION").to_string()), "Warpzone".to_string()),
+        };
+        let kind = if self.feedback_idea { "idea" } else { "bug" };
+        let mut detail = format!("Written by a player in the launcher:\n\n{text}");
+        if !self.feedback_idea && game != FEEDBACK_WARPZONE {
+            let tail = install::log_tail(&game, 40);
+            if !tail.is_empty() {
+                detail.push_str(&format!("\n\nLast lines of the game's output (last run):\n{tail}"));
+            }
+        }
+        let client = warpzone_core::feedback::client_name("warpzone-launcher", env!("CARGO_PKG_VERSION"));
+        let req = warpzone_core::feedback::request(&game, kind, &text, &detail, version.as_deref(), &client);
+        let api = self.api.clone();
+        self.feedback_text.clear();
+        self.feedback_game = None;
+        self.jobs.run(move || {
+            let r = api.feedback(&req);
+            Box::new(move |app: &mut App| match r {
+                Ok(_) => app.toast(format!("Thanks! Sent to the people behind {name}.")),
+                Err(e) => {
+                    app.toast(format!("Could not send it: {e}"));
+                    if app.feedback_text.is_empty() {
+                        app.feedback_text = text;
+                    }
+                }
+            })
+        });
+    }
+
+    /// The game the feedback box is about: picked, else the last one started
+    /// (if it is still in the catalog), else Warpzone.
+    pub fn feedback_target(&self) -> String {
+        self.feedback_game
+            .clone()
+            .or_else(|| self.settings.last_game.clone().filter(|g| self.games.iter().any(|x| x.desc.id == *g)))
+            .unwrap_or_else(|| FEEDBACK_WARPZONE.to_string())
     }
 
     /// Join `room` of `game`: install if needed, then hand over to the game
@@ -1018,6 +1090,33 @@ impl App {
 
 // ---------------------------------------------------------------- drawing
 
+/// How a game that crashed ended (`None` for a normal end, or when the
+/// player or the system stopped it: SIGINT, SIGTERM, SIGKILL, SIGHUP).
+fn crash(status: &std::process::ExitStatus) -> Option<String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        if let Some(sig) = status.signal() {
+            let name = match sig {
+                4 => "SIGILL",
+                5 => "SIGTRAP",
+                6 => "SIGABRT",
+                7 => "SIGBUS",
+                8 => "SIGFPE",
+                11 => "SIGSEGV",
+                _ => return None,
+            };
+            return Some(format!("signal {sig} ({name})"));
+        }
+    }
+    match status.code() {
+        None | Some(0) => None,
+        #[cfg(windows)]
+        Some(c) if (c as u32) >= 0xC000_0000 => Some(format!("exception 0x{:08X}", c as u32)),
+        Some(c) => Some(format!("exit code {c}")),
+    }
+}
+
 fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     Frame::new()
         .fill(PANEL)
@@ -1179,6 +1278,35 @@ impl App {
                     }
                 }
             });
+        });
+    }
+
+    /// Always at the bottom: tell us about a problem or an idea.
+    fn feedback_bar(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Feedback").strong());
+            let target = self.feedback_target();
+            let name = |id: &str| self.games.iter().find(|g| g.desc.id == id).map(|g| g.desc.name.clone()).unwrap_or_else(|| "Warpzone".into());
+            let mut pick = target.clone();
+            egui::ComboBox::from_id_salt("feedbackgame").selected_text(name(&target)).width(170.0).show_ui(ui, |ui| {
+                ui.selectable_value(&mut pick, FEEDBACK_WARPZONE.to_string(), "Warpzone (launcher, online)");
+                for g in self.games.iter().filter(|g| !g.desc.hidden) {
+                    ui.selectable_value(&mut pick, g.desc.id.clone(), &g.desc.name);
+                }
+            });
+            if pick != target {
+                self.feedback_game = Some(pick);
+            }
+            ui.selectable_value(&mut self.feedback_idea, false, "Problem");
+            ui.selectable_value(&mut self.feedback_idea, true, "Idea");
+            let send_w = 70.0;
+            let hint = if self.feedback_idea { "What would make it better?" } else { "What went wrong? (sent with the game's last log lines)" };
+            let edit = ui.add(egui::TextEdit::singleline(&mut self.feedback_text).hint_text(hint).desired_width((ui.available_width() - send_w).max(120.0)));
+            let enter = edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let can = !self.feedback_text.trim().is_empty();
+            if (ui.add_enabled(can, egui::Button::new("Send")).clicked() || enter) && can {
+                self.send_feedback();
+            }
         });
     }
 
@@ -2134,6 +2262,13 @@ impl App {
                 if ui.checkbox(&mut self.settings.auto_update, "Update games automatically").changed() {
                     self.settings.save();
                 }
+                if ui
+                    .checkbox(&mut self.settings.crash_reports, "Report crashes")
+                    .on_hover_text("When a game or the launcher crashes, send what happened and the last log lines (without your user name) to its developers.")
+                    .changed()
+                {
+                    self.settings.save();
+                }
             });
             ui.add_space(8.0);
             card(ui, |ui| {
@@ -2470,6 +2605,9 @@ impl eframe::App for App {
             };
         }
         egui::Panel::top("top").frame(Frame::new().fill(Color32::from_rgb(14, 14, 25)).inner_margin(Margin::symmetric(14, 10))).show(ui, |ui| self.top_bar(ui));
+        egui::Panel::bottom("feedback")
+            .frame(Frame::new().fill(Color32::from_rgb(14, 14, 25)).inner_margin(Margin::symmetric(14, 8)))
+            .show(ui, |ui| self.feedback_bar(ui));
         egui::CentralPanel::default().frame(Frame::new().fill(BG).inner_margin(Margin::same(18))).show(ui, |ui| {
             if self.lobby.is_some() {
                 self.lobby_view(ui);

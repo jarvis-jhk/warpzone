@@ -1,5 +1,33 @@
 # Notes
 
+- 2026-10-17 (request t_mvc38s7b0g6uv, Jan): feedback service. Server
+  `POST /api/v1/feedback` (no account; game id or "warpzone"; kinds
+  crash|bug|idea; kept in table `feedback`, same game+kind+title within 7 d
+  counted; 10/h per IP; `GET /moderation/feedback`, `wz feedback`). With
+  `[feedback] url` each new report goes out as {lane, kind bug|feature,
+  title, detail, source} (30/h), lane from `[feedback] lanes` (game id ->
+  lane), else `lane`. Forwarded detail says the text is player-written data.
+  Launcher: always-visible bottom bar (game preset = settings.last_game,
+  Problem/Idea, Enter sends), crash reports for games killed by
+  SEGV/ABRT/BUS/FPE/ILL/TRAP or exiting non-zero (60 log lines, home dir and
+  login name scrubbed), own panics; Settings → "Report crashes".
+  libwarpzone: wz_report (background), wz_report_problem (no client,
+  blocking); `wz report`. e2e test feedback_is_kept_counted_and_passed_on.
+  DEPLOY (with the next release, 0.1.3): Config is deny_unknown_fields, so add
+  to vtt /root/warpzone/config/server.toml only once the server runs 0.1.3:
+    [feedback]
+    url = "<the JARVIS report URL — secret, never in this repo>"
+    lane = "warpzone"
+    lanes = { diablo-splitscreen = "diablo", diablo2-couch = "diablo2",
+      drmario64-vs = "drmario", funny-furries = "furries",
+      gtetrinet-ng = "tetrinet", opents-coop = "opents", s25coop = "siedler",
+      super-mario-land-port = "mario", spacehog = "spacehog", opens4 = "opens4" }
+  (and `[fault_reports] url` from the 2026-10-16 entry, still pending). Until
+  then feedback is only stored on the server. Asked the game lanes (diablo,
+  diablo2, drmario, furries, tetrinet, opents, siedler, mario, spacehog,
+  opens4) to report their own faults with wz_report/wz_report_problem once
+  libwarpzone 0.1.3 is out.
+
 - 2026-10-17 (report t_mvbq58qs35wt4z, spacehog lane): PR #13 (spacehog tier 2,
   join/host, max_players 2, no [mods]/leaderboards) NOT merged yet: it waits for
   github.com/jarvis-jhk/spacehog/releases/tag/v0.2.0, which does not exist

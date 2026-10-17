@@ -30,6 +30,13 @@ trust_forwarded_for = true
 
 # Optional: the server's own faults (500s, failed background jobs, panics) as
 # JSON POSTs {"lane","kind":"bug","title","detail","source"}. Keep the URL private.
+# Optional: player feedback (crashes, problems, ideas) is always kept in the
+# database; with a url each new report is also POSTed there as JSON.
+# [feedback]
+# url = "https://example.org/your-private-report-endpoint"
+# lane = "warpzone"                  # Warpzone itself and unmapped games
+# lanes = { spacehog = "spacehog" }  # game id -> lane
+
 # [fault_reports]
 # url = "https://example.org/your-private-report-endpoint"
 # lane = "warpzone"

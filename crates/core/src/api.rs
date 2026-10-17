@@ -397,6 +397,15 @@ impl Api {
         self.post("/reports", r)
     }
 
+    /// Needs no account: a crashed game may never have logged in.
+    pub fn feedback(&self, r: &FeedbackRequest) -> Result<FeedbackResponse> {
+        self.post_public("/feedback", r)
+    }
+
+    pub fn feedback_list(&self, game: Option<&str>) -> Result<Vec<FeedbackEntry>> {
+        self.get(&game.map(|g| format!("/moderation/feedback?game={}", qs(g))).unwrap_or_else(|| "/moderation/feedback".into()))
+    }
+
     // ------------------------------------------------------------ moderation
 
     pub fn moderation_queue(&self) -> Result<ModerationQueue> {

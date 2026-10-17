@@ -61,8 +61,20 @@ wz reject  <game> <name> <version> copyright
 wz hide | unhide <game> <name> <version>
 wz note <game> <name> <version> looks fine, 3 levels, original art
 wz close-report 12
+wz feedback [game]          # newest crash, problem and idea reports
 wz rename-user BadName Player123
 ```
+
+## Feedback
+
+```sh
+wz report spacehog crash "ended with signal 11 (SIGSEGV)" --version 0.2.0 --detail crash.txt
+some-tool 2>&1 | tail -50 | wz report warpzone bug "relay test fails" --detail -
+wz report warpzone idea "show ping in the room list"
+```
+
+No account needed. Games without libwarpzone can report their own crashes
+this way (or with a plain HTTP POST, see [api](api.md)).
 
 ## Network diagnostics
 

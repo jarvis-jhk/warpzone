@@ -248,6 +248,10 @@ impl Client {
         &self.cfg.game
     }
 
+    pub fn game_version(&self) -> &str {
+        &self.cfg.game_version
+    }
+
     fn cmd(&self, c: Cmd) {
         let _ = self.tx.send(c);
     }

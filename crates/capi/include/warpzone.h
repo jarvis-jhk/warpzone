@@ -192,6 +192,28 @@ void wz_check_update(wz_client *c);
  * WZ_EVENT_MODS_PROGRESS..., then WZ_EVENT_MODS_SYNCED with the paths. */
 void wz_sync_mods(wz_client *c, const char *lockfile_hash);
 
+/* ---- crash, problem and idea reports ----------------------------------- */
+
+/* kind: "crash" (the game died), "bug" (something failed that should not:
+ * a corrupt save, a failed load, an assertion) or "idea". title is one
+ * line and stays the same for the same fault (put varying parts such as
+ * addresses into detail): identical titles are counted, not repeated.
+ * detail: stack, log lines, steps; at most 16 KiB. The home directory and
+ * login name are removed before anything is sent. Report real faults only,
+ * never ordinary player mistakes, and never passwords or tokens.
+ *
+ * wz_report sends in the background for this client's game and version and
+ * never blocks; nothing comes back. */
+void wz_report(wz_client *c, const char *kind, const char *title, const char *detail);
+
+/* The same without a client, for crash handlers and for reporting a crash on
+ * the next start (write it to a file when the game dies, send it then).
+ * Blocks until the server answered (connect timeout 10 s). server NULL:
+ * $WARPZONE_SERVER, else the default server. Returns 0 when the server took
+ * it, -1 on failure (wz_last_error). Not async-signal-safe: do not call it
+ * from a signal handler. */
+int wz_report_problem(const char *server, const char *game, const char *game_version, const char *kind, const char *title, const char *detail);
+
 #ifdef __cplusplus
 }
 #endif

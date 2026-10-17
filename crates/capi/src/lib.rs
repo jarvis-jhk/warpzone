@@ -433,3 +433,41 @@ pub unsafe extern "C" fn wz_sync_mods(c: *mut WzClient, lockfile_hash: *const c_
         c.inner.sync_mods(h);
     }
 }
+
+fn client_name() -> String {
+    warpzone_core::feedback::client_name("libwarpzone", env!("CARGO_PKG_VERSION"))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wz_report(c: *mut WzClient, kind: *const c_char, title: *const c_char, detail: *const c_char) {
+    let c = client!(c);
+    let (Some(kind), Some(title)) = (unsafe { s(kind) }, unsafe { s(title) }) else { return };
+    let req = warpzone_core::feedback::request(c.inner.game(), kind, title, unsafe { s(detail) }.unwrap_or(""), Some(c.inner.game_version()), &client_name());
+    warpzone_core::feedback::send_in_background(c.inner.api(), req);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wz_report_problem(
+    server: *const c_char,
+    game: *const c_char,
+    game_version: *const c_char,
+    kind: *const c_char,
+    title: *const c_char,
+    detail: *const c_char,
+) -> c_int {
+    let (Some(game), Some(kind), Some(title)) = (unsafe { s(game) }, unsafe { s(kind) }, unsafe { s(title) }) else {
+        set_error("game, kind and title are required");
+        return -1;
+    };
+    let server = unsafe { s(server) }.map(String::from).unwrap_or_else(warpzone_core::server_url);
+    // No login needed: a throwaway identity is enough.
+    let api = warpzone_core::api::Api::new(&server, Arc::new(Identity::generate()));
+    let req = warpzone_core::feedback::request(game, kind, title, unsafe { s(detail) }.unwrap_or(""), unsafe { s(game_version) }, &client_name());
+    match warpzone_core::feedback::send(&api, &req) {
+        Ok(_) => 0,
+        Err(e) => {
+            set_error(e.to_string());
+            -1
+        }
+    }
+}

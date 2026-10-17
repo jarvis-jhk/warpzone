@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY, target TEXT NOT NULL, game TEXT, name TEXT NOT NULL, version TEXT,
   reason TEXT NOT NULL, detail TEXT, reporter INTEGER, created INTEGER NOT NULL, closed INTEGER
 );
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY, game TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, detail TEXT NOT NULL,
+  version TEXT, client TEXT, account INTEGER, count INTEGER NOT NULL DEFAULT 1,
+  created INTEGER NOT NULL, last INTEGER NOT NULL, forwarded INTEGER
+);
+CREATE INDEX IF NOT EXISTS feedback_title ON feedback (game, kind, title);
 CREATE TABLE IF NOT EXISTS lockfiles (
   hash TEXT PRIMARY KEY, game TEXT NOT NULL, body TEXT NOT NULL, created INTEGER NOT NULL
 );

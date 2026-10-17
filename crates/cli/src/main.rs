@@ -38,6 +38,10 @@ Games:
   rollback <game>                go back to the previously installed version
   uninstall <game>               remove an installed game
 
+Feedback (no account needed):
+  report <game|warpzone> <crash|bug|idea> <title> [--version V] [--detail FILE|-]
+                                 send a crash, problem or idea (detail from a file or stdin)
+
 Ladder & leaderboards:
   standings <game> <queue> [season]
   board <game> <board> [ruleset] [season]
@@ -61,6 +65,7 @@ Moderation (moderator/reviewer keys):
   hide|unhide <game> <name> <version>
   note <game> <name> <version> <text>
   close-report <id>
+  feedback [game]                newest crash, problem and idea reports
   rename-user <old> <new>
 
 Network diagnostics:
@@ -359,6 +364,22 @@ fn main() {
             print(&ok(api(&server).decide(arg(a, 1, "game"), arg(a, 2, "name"), arg(a, 3, "version"), "reject", Some(reason))));
         }
         "note" => print(&ok(api(&server).note(arg(a, 1, "game"), arg(a, 2, "name"), arg(a, 3, "version"), &a[4..].join(" ")))),
+        "report" => {
+            let opt = |name: &str| a.iter().position(|x| x == name).and_then(|i| a.get(i + 1)).map(String::as_str);
+            let detail = match opt("--detail") {
+                Some("-") => {
+                    let mut t = String::new();
+                    ok(std::io::Read::read_to_string(&mut std::io::stdin(), &mut t).map_err(Into::into));
+                    t
+                }
+                Some(f) => ok(std::fs::read_to_string(f).map_err(Into::into)),
+                None => String::new(),
+            };
+            let client = warpzone_core::feedback::client_name("wz", env!("CARGO_PKG_VERSION"));
+            let req = warpzone_core::feedback::request(arg(a, 1, "game"), arg(a, 2, "kind"), arg(a, 3, "title"), &detail, opt("--version"), &client);
+            print(&ok(api(&server).feedback(&req)))
+        }
+        "feedback" => print(&ok(api(&server).feedback_list(a.get(1).map(String::as_str)))),
         "close-report" => print(&ok(api(&server).close_report(arg(a, 1, "id").parse().unwrap_or_else(|_| die("id is a number"))))),
         "rename-user" => {
             let v: serde_json::Value =

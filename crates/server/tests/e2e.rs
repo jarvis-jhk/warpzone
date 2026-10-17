@@ -61,6 +61,10 @@ seasonal = true
 "#;
 
 fn start() -> Server {
+    start_with("")
+}
+
+fn start_with(extra_config: &str) -> Server {
     let dir = tempfile::tempdir().unwrap();
     let http = free_tcp();
     let udp = free_udp();
@@ -72,7 +76,7 @@ fn start() -> Server {
     std::fs::write(
         dir.path().join("server.toml"),
         format!(
-            "public_url = \"{url}\"\nhttp_listen = \"127.0.0.1:{http}\"\nudp_listen = \"127.0.0.1:{udp}\"\ndata_dir = \"data\"\ngames_dir = \"games\"\nstaff_file = \"staff.toml\"\n[limits]\nregistrations_per_ip_per_day = 100\nlogins_per_ip_per_minute = 1000\ncode_guesses_per_ip_per_minute = 100\n"
+            "public_url = \"{url}\"\nhttp_listen = \"127.0.0.1:{http}\"\nudp_listen = \"127.0.0.1:{udp}\"\ndata_dir = \"data\"\ngames_dir = \"games\"\nstaff_file = \"staff.toml\"\n[limits]\nregistrations_per_ip_per_day = 100\nlogins_per_ip_per_minute = 1000\ncode_guesses_per_ip_per_minute = 100\n{extra_config}"
         ),
     )
     .unwrap();
@@ -402,4 +406,65 @@ fn mods_moderation_resolve_sync() {
     assert!(store.validate(&[("cave-level".into(), "1.0.0".into())], "1.2.0").iter().any(|p| p.contains("cave-tiles")));
     // Downloads are counted.
     assert!(anon.mod_detail("demo", "cave-tiles").is_ok());
+}
+
+/// A one-shot HTTP receiver: answers 200 to every POST and hands over the bodies.
+fn receiver() -> (String, std::sync::mpsc::Receiver<serde_json::Value>) {
+    use std::io::{BufRead, BufReader, Read};
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/report/secret", l.local_addr().unwrap());
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for s in l.incoming().flatten() {
+            let mut r = BufReader::new(s);
+            let mut len = 0;
+            loop {
+                let mut line = String::new();
+                if r.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                    break;
+                }
+                if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    len = v.trim().parse().unwrap_or(0);
+                }
+            }
+            let mut body = vec![0; len];
+            r.read_exact(&mut body).unwrap();
+            let _ = r.get_mut().write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}");
+            let _ = tx.send(serde_json::from_slice(&body).unwrap());
+        }
+    });
+    (url, rx)
+}
+
+#[test]
+fn feedback_is_kept_counted_and_passed_on() {
+    let (url, got) = receiver();
+    let s = start_with(&format!("[feedback]\nurl = \"{url}\"\nlanes = {{ demo = \"demo-lane\" }}\nper_ip_per_hour = 3\n"));
+    let anon = Api::new(&s.url, Arc::new(Identity::generate()));
+    let crash = warpzone_core::feedback::request("demo", "crash", "ended with signal 11 (SIGSEGV)", "stack…", Some("1.0.0"), "test");
+    let first = anon.feedback(&crash).unwrap();
+    assert!(!first.duplicate);
+    let fwd = got.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert_eq!((fwd["lane"].as_str(), fwd["kind"].as_str()), (Some("demo-lane"), Some("bug")));
+    assert_eq!(fwd["title"], "Demo Game crashed: ended with signal 11 (SIGSEGV)");
+    assert!(fwd["detail"].as_str().unwrap().ends_with("stack…"));
+    // The same crash again is counted, not passed on twice.
+    let again = anon.feedback(&crash).unwrap();
+    assert!(again.duplicate && again.id == first.id);
+    // Ideas for Warpzone itself go to the default lane as feature requests.
+    anon.feedback(&warpzone_core::feedback::request("warpzone", "idea", "dark mode", "", None, "test")).unwrap();
+    let fwd = got.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert_eq!((fwd["lane"].as_str(), fwd["kind"].as_str()), (Some("warpzone"), Some("feature")));
+    // Unknown games and kinds are refused; the per-address limit holds.
+    assert!(anon.feedback(&warpzone_core::feedback::request("nope", "bug", "x", "", None, "t")).is_err());
+    assert!(anon.feedback(&warpzone_core::feedback::request("demo", "rant", "x", "", None, "t")).is_err());
+    let limited = anon.feedback(&warpzone_core::feedback::request("demo", "bug", "fifth", "", None, "t"));
+    assert!(matches!(limited, Err(warpzone_core::Error::Api { status: 429, .. })), "{limited:?}");
+    // Staff see it, with the count.
+    let staff = Api::new(&s.url, s.moderator.clone());
+    let list = staff.feedback_list(Some("demo")).unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].count, 2);
+    assert!(list[0].forwarded.is_some());
+    assert!(anon.feedback_list(None).is_err());
 }

@@ -21,6 +21,10 @@ pub struct Settings {
     pub server: String,
     /// Show the "x" button as "hide to background" hint once.
     pub hinted_background: bool,
+    /// The game started last (the feedback box's preset).
+    pub last_game: Option<String>,
+    /// Report games that crash (with their last log lines) to the server.
+    pub crash_reports: bool,
 }
 
 impl Default for Settings {
@@ -33,6 +37,8 @@ impl Default for Settings {
             seen_versions: BTreeMap::new(),
             server: String::new(),
             hinted_background: false,
+            last_game: None,
+            crash_reports: true,
         }
     }
 }

@@ -52,6 +52,33 @@ pub struct Config {
     /// panics) as JSON POSTs.
     #[serde(default)]
     pub fault_reports: Option<FaultReports>,
+    /// Player feedback (`POST /api/v1/feedback`): always stored; with `url`
+    /// also passed on.
+    #[serde(default)]
+    pub feedback: FeedbackConfig,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, default)]
+pub struct FeedbackConfig {
+    /// Gets `{"lane","kind","title","detail","source"}` per new report
+    /// (`kind` is `bug` for crashes and problems, `feature` for ideas), the
+    /// same shape as `[fault_reports]`.
+    pub url: Option<String>,
+    /// `lane` for Warpzone itself and for games without an entry in `lanes`.
+    pub lane: String,
+    /// Game id → `lane`, for receivers that sort by project.
+    pub lanes: std::collections::BTreeMap<String, String>,
+    /// Reports one address may send per hour.
+    pub per_ip_per_hour: u32,
+    /// Reports passed on per hour for the whole server; the rest are kept.
+    pub forward_per_hour: u32,
+}
+
+impl Default for FeedbackConfig {
+    fn default() -> Self {
+        FeedbackConfig { url: None, lane: default_lane(), lanes: Default::default(), per_ip_per_hour: 10, forward_per_hour: 30 }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]

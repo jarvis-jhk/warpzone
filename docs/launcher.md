@@ -66,6 +66,22 @@ with an error within 30 seconds, the game page shows why, with the last lines
 of that log. Found game files go to the game as `WARPZONE_DATA_<ID>`
 environment variables ([integration](integration.md#game-files-the-launcher-found)).
 
+When a game crashes — it is killed by SIGSEGV, SIGABRT, SIGBUS, SIGFPE,
+SIGILL or SIGTRAP, or exits with a non-zero code (on Windows: also an
+exception code) — the launcher sends a `crash` report for that game with the
+last 60 lines of `last-run.log` to the server (`POST /api/v1/feedback`), with
+the home directory and login name replaced. Being stopped (SIGINT, SIGTERM,
+SIGKILL, SIGHUP) is not a crash. The launcher's own panics go the same way as
+feedback for Warpzone. *Settings → Report crashes* turns both off.
+
+## Feedback
+
+The bar at the bottom of every page sends a problem or an idea: pick the game
+(preset to the game started last, or *Warpzone* for the launcher and the
+online parts), *Problem* or *Idea*, type, Enter. A problem about a game
+carries the last 40 lines of its last run's log. The server keeps it and may
+pass it on to the game's developers ([self-hosting](self-hosting.md)).
+
 ## Game files
 
 For games with `[[data]]` requirements the launcher searches Steam libraries

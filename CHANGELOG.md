@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Feedback: `POST /api/v1/feedback` takes crashes, problems and ideas for a
+  game or for Warpzone itself, no account needed. The server keeps them
+  (identical titles are counted), shows them to staff (`wz feedback`) and,
+  with the new `[feedback] url`, passes each new one on as JSON, routed per
+  game with `lanes`. Limited per address and per hour.
+
+- Launcher: a feedback bar at the bottom of every page — pick the game
+  (preset to the one started last, or Warpzone itself), *Problem* or *Idea*,
+  type, Enter. Games that crash (a fatal signal or a non-zero exit) and the
+  launcher's own panics are reported with the last log lines, home directory
+  and login name removed; *Settings → Report crashes* turns that off.
+
+- libwarpzone: `wz_report(c, kind, title, detail)` (background) and
+  `wz_report_problem(server, game, version, kind, title, detail)` (no client
+  needed, for crash handlers and the next start). `wz report` for scripts
+  and games without the library.
+
 - Launcher: *Browse…* next to "Files elsewhere?" opens the desktop's folder
   dialog (zenity or kdialog on Linux and the Deck, the standard dialog on
   Windows and macOS) and searches the chosen folder; typing the path still

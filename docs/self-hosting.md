@@ -93,7 +93,23 @@ warpzone.example.org {
 | `launcher` | none | GitHub release source for the launcher's download buttons (same shape as a descriptor's `[install]`) |
 | `source_url` | the project | where the website links for source and docs |
 | `legal_url` | none | imprint/contact page linked from every footer |
+| `feedback` | kept only | player feedback from `POST /api/v1/feedback`, see below |
 | `fault_reports` | none | `{ url = "…", lane = "warpzone" }`: the server's own faults (500s, errors in background jobs, a failed start, panics) as a JSON POST `{"lane","kind":"bug","title","detail","source"}` each; identical faults once per 6 h, at most 20 per hour |
+
+`[feedback]` — crashes, problems and ideas players and games send. Every
+report is kept in the database (`wz feedback`, `GET /moderation/feedback`);
+with `url`, each new one is also passed on as a JSON POST
+`{"lane", "kind": "bug" | "feature", "title", "detail", "source"}` — the same
+shape as `fault_reports`, so one receiver (an issue tracker bridge, a chat
+webhook, your own queue) can take both:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `url` | none | where new reports go; keep it in this file if it is secret |
+| `lane` | `"warpzone"` | `lane` for feedback about Warpzone itself and for games without an entry in `lanes` |
+| `lanes` | `{}` | game id → `lane`, e.g. `{ spacehog = "spacehog" }`, for receivers that sort by project |
+| `per_ip_per_hour` | 10 | reports one address may send |
+| `forward_per_hour` | 30 | reports passed on per hour in total; the rest are only kept |
 
 `[limits]`:
 
