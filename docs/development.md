@@ -79,7 +79,8 @@ cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.27 -p warpzone-cap
    Windows MSVC and MinGW), `wz` and the launcher (Linux, Windows), publishes
    them with `SHA256SUMS`, and pushes a container image to ghcr.io.
 3. Deploy: set `WARPZONE_VERSION` and `WARPZONE_SHA256` in the instance's
-   `.env`, `docker compose up -d --build`.
+   `.env` or `docker-compose.override.yml` (the public instance uses the
+   override file), `docker compose up -d --build`.
 
 ## Conventions
 
