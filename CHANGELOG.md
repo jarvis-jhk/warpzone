@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Rooms: a host that cannot reach the server any more now finds out. Failed
+  heartbeats used to pass silently while the server closed the room for the
+  guests after 45 s, so the guests saw `RoomClosed` and the host waited
+  forever. After 50 s without an accepted heartbeat the host gets
+  `Error {op: "heartbeat"}` and `RoomClosed`.
+
 - Rooms: a host no longer misses a player who joins while its own join is
   still on the way (ranked rooms, where everybody joins at once after a match
   is found): room events that arrive before the join answer are kept and

@@ -1,5 +1,21 @@
 # Notes
 
+- 2026-10-17 (report t_mvc5ffe8wno81, furries lane): FF CI run 39017751821
+  attempt 1, test_3_ranked_1v1: guest got ROOM_CLOSED after PEER_CONNECTED,
+  host nothing (libwarpzone + server v0.1.0). Attempt 2 passed. Not
+  reproduced: the same sequence (two code rooms, then 1v1 with the earlier
+  guest as ranked host) ran 8x clean on v0.1.0 and 1x on main. The server
+  never closes a room for one member: every close (host close/leave, 45 s
+  heartbeat sweep, account deletion) queues RoomClosed to all members, host
+  included, and the library makes one up only for a host whose heartbeat
+  gets not_found. So that host's requests were failing (heartbeat errors
+  were swallowed, the event poll retries silently) and the room was swept.
+  Why they failed is not visible in the tails (server.log of that run was
+  not kept; job logs need GitHub auth). Fix in libwarpzone: host gets
+  Error{op:heartbeat} + RoomClosed after 50 s without an accepted heartbeat
+  (client::tests::host_without_heartbeats_loses_the_room). Not told Jan
+  (releases-only lane).
+
 - 2026-10-17 (report t_mvc4macrq7ykb, furries lane): ranked 4-player lobby
   hang (FF CI test_4_ranked_ffa / test_5_ranked_2v2). Cause: client.rs
   dropped room events (PeerJoined) that the events thread delivered before

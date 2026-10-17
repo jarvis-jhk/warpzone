@@ -187,10 +187,19 @@ enum Cmd {
 
 enum Msg {
     Event(Event),
-    Joined { joined: Joined, host: bool },
+    Joined {
+        joined: Joined,
+        host: bool,
+    },
     Hosted(CreatedRoom),
     Server(ServerEvent),
-    Ready { info: ServerInfo },
+    Ready {
+        info: ServerInfo,
+    },
+    /// A heartbeat for this room went through.
+    Beat {
+        room: String,
+    },
 }
 
 struct RoomState {
@@ -203,6 +212,8 @@ struct RoomState {
     /// Peers re-added after a timeout that have not connected since.
     retried: HashSet<i64>,
     last_beat: Instant,
+    /// The last heartbeat the server accepted (or when we joined).
+    beat_ok: Instant,
     sent_candidates: Vec<String>,
 }
 
@@ -226,6 +237,11 @@ pub struct Client {
 /// How long an early room event is kept, and how many.
 const EARLY_KEEP: Duration = Duration::from_secs(60);
 const EARLY_MAX: usize = 256;
+
+/// A host whose heartbeats have not gone through for this long has lost its
+/// room: the server closes rooms 45 s after the last one (and tells everyone
+/// but a host it cannot reach).
+const BEAT_LOST: Duration = Duration::from_secs(50);
 
 /// The room a room-scoped server event belongs to.
 fn event_room(e: &ServerEvent) -> Option<&str> {
@@ -518,6 +534,7 @@ impl Client {
             infos: HashMap::new(),
             retried: HashSet::new(),
             last_beat: Instant::now(),
+            beat_ok: Instant::now(),
             sent_candidates: self.candidates(),
         });
         self.events.push_back(Event::RoomJoined { room: j.room.clone(), host });
@@ -636,6 +653,9 @@ impl Client {
                 NetEvent::Lost { peer, bye } => self.on_lost(peer, bye),
             }
         }
+        if self.room.as_ref().is_some_and(|r| r.host && r.beat_ok.elapsed() > BEAT_LOST) {
+            self.lose_room();
+        }
         let Some(net) = self.net.as_mut() else { return };
         // Heartbeats (host) and candidate updates (STUN finished later).
         let cands = net.candidates();
@@ -654,6 +674,23 @@ impl Client {
                 let _ = self.tx.send(Cmd::Candidates { room: r.id.clone(), candidates: cands });
             }
         }
+    }
+
+    /// Host: the server has not taken a heartbeat for too long, so it has
+    /// closed the room and told the guests. Say so instead of waiting forever,
+    /// and close it in case the server only lost our requests.
+    fn lose_room(&mut self) {
+        let Some(r) = self.room.take() else { return };
+        self.cmd(Cmd::Close(r.id.clone()));
+        if let Some(n) = self.net.as_mut() {
+            n.clear();
+        }
+        self.events.push_back(Event::Error {
+            op: "heartbeat".into(),
+            code: "unreachable".into(),
+            message: format!("the server took no heartbeat for {} s", BEAT_LOST.as_secs()),
+        });
+        self.events.push_back(Event::RoomClosed { room: r.id });
     }
 
     /// A peer went silent or said goodbye. One that timed out but is still a
@@ -690,6 +727,13 @@ impl Client {
             }
             Msg::Joined { joined, host } => self.on_joined(joined, host),
             Msg::Server(e) => self.on_server(e),
+            Msg::Beat { room } => {
+                if let Some(r) = self.room.as_mut()
+                    && r.id == room
+                {
+                    r.beat_ok = Instant::now();
+                }
+            }
             Msg::Ready { .. } => {}
         }
     }
@@ -784,13 +828,11 @@ fn spawn_service(api: Arc<Api>, cfg: Config, rx: Receiver<Cmd>, tx: Sender<Msg>,
                             ev(err_event("knock", &e));
                         }
                     }
-                    Cmd::Heartbeat { room, hb } => {
-                        if let Err(e) = api.heartbeat(&room, &hb)
-                            && e.code() == "not_found"
-                        {
-                            send(Msg::Server(ServerEvent::RoomClosed { room }));
-                        }
-                    }
+                    Cmd::Heartbeat { room, hb } => match api.heartbeat(&room, &hb) {
+                        Ok(_) => send(Msg::Beat { room }),
+                        Err(e) if e.code() == "not_found" => send(Msg::Server(ServerEvent::RoomClosed { room })),
+                        Err(_) => {}
+                    },
                     Cmd::Candidates { room, candidates } => {
                         let _ = api.update_candidates(&room, candidates);
                     }
@@ -979,6 +1021,25 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    /// A host that cannot reach the server any more must hear that its room is
+    /// gone (the server closed it for the guests after 45 s without heartbeats).
+    #[test]
+    fn host_without_heartbeats_loses_the_room() {
+        let mut c = offline_client();
+        c.handle_msg(Msg::Joined { joined: joined("r1", vec![]), host: true });
+        while c.next_event().is_some() {}
+        c.poll();
+        assert!(c.room_id().is_some(), "a fresh room stays");
+        c.handle_msg(Msg::Beat { room: "r1".into() });
+        let Some(old) = Instant::now().checked_sub(BEAT_LOST + Duration::from_secs(1)) else { return };
+        c.room.as_mut().unwrap().beat_ok = old;
+        c.poll();
+        let events: Vec<Event> = std::iter::from_fn(|| c.next_event()).collect();
+        assert!(events.iter().any(|e| matches!(e, Event::Error { op, .. } if op == "heartbeat")), "{events:?}");
+        assert!(events.iter().any(|e| matches!(e, Event::RoomClosed { room } if room == "r1")), "{events:?}");
+        assert!(c.room_id().is_none());
     }
 
     /// Ranked rooms: a guest's PeerJoined can overtake the host's own join answer.
