@@ -145,6 +145,9 @@ downloads = true          # search Downloads/Desktop (default true)
 discs = true              # search mounted discs (default true)
 buy = [{ label = "GOG.com", url = "https://..." }]
 free = [{ label = "Shareware", url = "https://..." }]
+fetch = [                 # freeware the launcher downloads by itself (0.1.3+)
+  { label = "DOS Games Archive", url = "https://...", file = "game.zip", size = 554767, sha256 = "…", license = "Freeware: \"you may distribute it in its original form\" (README.TXT)" },
+]
 import_args = ["--rom", "{path}"]     # hand-over A: start the game with these once
 copy_to = "~/.local/share/game/data"  # hand-over B: copy it here ({install} = install dir)
 present = ["~/.local/share/game/data/DATA"]   # already in place → don't ask
@@ -162,6 +165,16 @@ into `<warpzone home>/unpacked/`, and that folder or file is what the game gets.
 So players can leave the download as it is. Installers (`.exe`) are not
 opened; their files are found after running them, also in `C:\Games` and
 Wine's `drive_c/games`.
+
+`fetch` is for data whose licence lets anyone pass it on unchanged (freeware,
+some shareware): when nothing is found, the launcher downloads it on
+*Install* or *Play* (or *Download now*) into `<warpzone home>/downloads/<id>/`,
+trying the entries in order, and keeps a file only if it has exactly the
+pinned `size` and `sha256`. It is then found like a player's own download
+(zips are looked into), so `files` still decides what is used. `license` is
+shown to the player: quote or name what allows it. Never list data that is
+only sold, or freeware whose licence forbids passing it on; a page that hosts
+a file is not a licence. Servers strip `fetch` for launchers up to 0.1.2.
 
 File patterns are case-insensitive globs:
 

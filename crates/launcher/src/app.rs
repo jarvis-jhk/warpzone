@@ -7,7 +7,7 @@ use crate::settings::Settings;
 use crate::steam;
 use crate::system;
 use eframe::egui::{self, Color32, CornerRadius, Frame, Margin, RichText, Stroke, TextureHandle, TextureOptions, Vec2};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
@@ -36,10 +36,71 @@ pub struct DataScan {
 }
 
 impl DataScan {
-    /// Ready if already in place or a usable source was found.
+    /// Ready if already in place, a usable source was found, or the launcher
+    /// can download it by itself (freeware with `fetch`).
     pub fn ready(&self) -> bool {
-        self.present || self.chosen.is_some()
+        self.present || self.chosen.is_some() || gamedata::fetchable(&self.req)
     }
+
+    /// Nothing usable here yet, but the launcher can download it.
+    pub fn needs_fetch(&self) -> bool {
+        !self.present && self.chosen.is_none() && gamedata::fetchable(&self.req)
+    }
+}
+
+/// Look for every requirement and pick the best automatic choice for each.
+fn scan_reqs(reqs: Vec<DataRequirement>, inst_dir: Option<&Path>, extra: &[PathBuf]) -> Vec<DataScan> {
+    reqs.into_iter()
+        .map(|req| {
+            let present = gamedata::present(&req, inst_dir);
+            let found: Vec<(Found, Check)> = gamedata::find(&req, extra)
+                .into_iter()
+                .map(|f| {
+                    let c = gamedata::check(&req, &f.path);
+                    (f, c)
+                })
+                .collect();
+            // Best automatic choice: verified first, then unchecked/unknown; never unsupported.
+            let chosen = found
+                .iter()
+                .find(|(_, c)| matches!(c, Check::Verified(_)))
+                .or_else(|| found.iter().find(|(_, c)| matches!(c, Check::Unchecked)))
+                .map(|(f, _)| f.path.clone());
+            DataScan { req, present, found, chosen }
+        })
+        .collect()
+}
+
+/// Progress of a data download, shown as the game's busy line (throttled).
+fn progress_sender(jobs: &Jobs, gid: &str) -> impl FnMut(&str, u64, u64) + use<> {
+    let (jobs, gid) = (jobs.clone(), gid.to_string());
+    let mut last: Option<Instant> = None;
+    move |label: &str, done: u64, total: u64| {
+        if last.is_some_and(|l| l.elapsed() < Duration::from_millis(100)) {
+            return;
+        }
+        last = Some(Instant::now());
+        let (gid, busy) = (gid.clone(), format!("Downloading {label}…"));
+        jobs.send(Box::new(move |app: &mut App| {
+            if let Some(g) = app.game(&gid) {
+                g.busy = Some(busy);
+                g.progress = Some((done, total));
+            }
+        }));
+    }
+}
+
+/// Download what `scans` can fetch and has nowhere else; returns the errors
+/// ("label: reason"). `progress` gets (label, bytes so far, total).
+fn fetch_missing(api: &Api, scans: &[DataScan], progress: &mut dyn FnMut(&str, u64, u64)) -> Vec<String> {
+    let mut errors = Vec::new();
+    for s in scans.iter().filter(|s| s.needs_fetch()) {
+        let total = s.req.fetch.first().map(|f| f.size).unwrap_or(0);
+        if let Err(e) = gamedata::fetch(api, &s.req, &mut |done| progress(&s.req.label, done, total)) {
+            errors.push(format!("Could not download {}: {e}", s.req.label));
+        }
+    }
+    errors
 }
 
 pub struct GameState {
@@ -390,29 +451,43 @@ impl App {
         let extra: Vec<PathBuf> = self.settings.data_folders.iter().map(PathBuf::from).collect();
         let gid = id.to_string();
         self.jobs.run(move || {
-            let scans: Vec<DataScan> = reqs
-                .into_iter()
-                .map(|req| {
-                    let present = gamedata::present(&req, inst_dir.as_deref());
-                    let found: Vec<(Found, Check)> = gamedata::find(&req, &extra)
-                        .into_iter()
-                        .map(|f| {
-                            let c = gamedata::check(&req, &f.path);
-                            (f, c)
-                        })
-                        .collect();
-                    // Best automatic choice: verified first, then unchecked/unknown; never unsupported.
-                    let chosen = found
-                        .iter()
-                        .find(|(_, c)| matches!(c, Check::Verified(_)))
-                        .or_else(|| found.iter().find(|(_, c)| matches!(c, Check::Unchecked)))
-                        .map(|(f, _)| f.path.clone());
-                    DataScan { req, present, found, chosen }
-                })
-                .collect();
+            let scans = scan_reqs(reqs, inst_dir.as_deref(), &extra);
             Box::new(move |app: &mut App| {
                 if let Some(g) = app.game(&gid) {
                     g.data = Some(scans);
+                }
+            })
+        });
+    }
+
+    /// Download the freeware data the launcher can fetch itself, then search
+    /// again (and start the game when `play` is set).
+    pub fn fetch_data(&mut self, id: &str, play: bool) {
+        let Some(g) = self.games.iter_mut().find(|g| g.desc.id == id) else { return };
+        let Some(reqs) = g.data.as_ref().map(|d| d.iter().map(|s| s.req.clone()).collect::<Vec<_>>()) else { return };
+        g.busy = Some("Downloading the game files…".into());
+        g.error = None;
+        let inst_dir = g.installed.as_ref().map(|i| i.dir.clone());
+        let extra: Vec<PathBuf> = self.settings.data_folders.iter().map(PathBuf::from).collect();
+        let api = self.api.clone();
+        let jobs = self.jobs.clone();
+        let gid = id.to_string();
+        self.jobs.run(move || {
+            let before = scan_reqs(reqs.clone(), inst_dir.as_deref(), &extra);
+            let errors = fetch_missing(&api, &before, &mut progress_sender(&jobs, &gid));
+            let scans = scan_reqs(reqs, inst_dir.as_deref(), &extra);
+            Box::new(move |app: &mut App| {
+                let ready = scans.iter().all(|s| s.present || s.chosen.is_some() || s.req.optional);
+                if let Some(g) = app.game(&gid) {
+                    g.busy = None;
+                    g.progress = None;
+                    g.data = Some(scans);
+                    if !errors.is_empty() {
+                        g.error = Some(errors.join("\n"));
+                    }
+                }
+                if play && ready {
+                    app.play(&gid);
                 }
             })
         });
@@ -462,12 +537,39 @@ impl App {
         g.progress = Some((0, install::asset_for(&release, install::platform()).map(|a| a.1.size).unwrap_or(0)));
         g.error = None;
         let desc = g.desc.clone();
-        let choices: Vec<(DataRequirement, Option<PathBuf>, bool)> =
+        let mut choices: Vec<(DataRequirement, Option<PathBuf>, bool)> =
             g.data.as_ref().map(|d| d.iter().map(|s| (s.req.clone(), s.chosen.clone(), s.present)).collect()).unwrap_or_default();
+        let needs_fetch = g.data.as_ref().is_some_and(|d| d.iter().any(DataScan::needs_fetch));
+        let busy = g.busy.clone();
+        let inst_dir = g.installed.as_ref().map(|i| i.dir.clone());
+        let extra: Vec<PathBuf> = self.settings.data_folders.iter().map(PathBuf::from).collect();
         let api = self.api.clone();
         let jobs = self.jobs.clone();
         let gid = id.to_string();
         self.jobs.run(move || {
+            // Freeware data the launcher downloads itself comes first: it is small,
+            // and the game is of no use without it.
+            let mut fetch_errors = Vec::new();
+            let mut rescanned = None;
+            if needs_fetch {
+                let reqs: Vec<DataRequirement> = choices.iter().map(|c| c.0.clone()).collect();
+                let before = scan_reqs(reqs.clone(), inst_dir.as_deref(), &extra);
+                fetch_errors = fetch_missing(&api, &before, &mut progress_sender(&jobs, &gid));
+                let scans = scan_reqs(reqs, inst_dir.as_deref(), &extra);
+                for (c, s) in choices.iter_mut().zip(&scans) {
+                    if c.1.is_none() {
+                        c.1 = s.chosen.clone();
+                    }
+                }
+                rescanned = Some(scans);
+                let (gid, busy) = (gid.clone(), busy.clone());
+                jobs.send(Box::new(move |app: &mut App| {
+                    if let Some(g) = app.game(&gid) {
+                        g.busy = busy;
+                        g.progress = None;
+                    }
+                }));
+            }
             let total = install::asset_for(&release, install::platform()).map(|a| a.1.size).unwrap_or(0);
             let mut last = Instant::now();
             let gid2 = gid.clone();
@@ -507,6 +609,13 @@ impl App {
                         }
                         Err(e) => g.error = Some(e.to_string()),
                     }
+                    if !fetch_errors.is_empty() {
+                        let e = fetch_errors.join("\n");
+                        g.error = Some(g.error.take().map(|x| format!("{x}\n{e}")).unwrap_or(e));
+                    }
+                    if rescanned.is_some() {
+                        g.data = rescanned;
+                    }
                 }
                 for (label, res) in handed {
                     if let Err(e) = res {
@@ -535,6 +644,10 @@ impl App {
         if g.update_available() && self.settings.auto_update && g.busy.is_none() {
             self.play_after = Some(id.to_string());
             self.install(id, false);
+            return;
+        }
+        if g.busy.is_none() && g.data.as_ref().is_some_and(|d| d.iter().any(|s| s.needs_fetch() && !s.req.optional)) {
+            self.fetch_data(id, true);
             return;
         }
         let mut args = Vec::new();
@@ -1314,6 +1427,8 @@ impl App {
                                     ui.label(RichText::new("in place").color(OK));
                                 } else if s.chosen.is_some() {
                                     ui.label(RichText::new("found").color(OK));
+                                } else if s.needs_fetch() {
+                                    ui.label(RichText::new("free download").color(OK));
                                 } else if s.req.optional {
                                     ui.label(RichText::new("optional").color(MUTED));
                                 } else {
@@ -1341,7 +1456,20 @@ impl App {
                                 }
                             });
                         }
-                        if !s.present && s.found.is_empty() {
+                        if s.needs_fetch()
+                            && let Some(f) = s.req.fetch.first()
+                        {
+                            ui.label(
+                                RichText::new(format!(
+                                    "Not found on this computer. The launcher downloads it by itself when you install or play ({}, from {}). {}",
+                                    mb(f.size),
+                                    f.label,
+                                    f.license
+                                ))
+                                .color(MUTED)
+                                .size(13.5),
+                            );
+                        } else if !s.present && s.found.is_empty() {
                             ui.label(
                                 RichText::new("Not found in Steam, GOG, Heroic, Lutris, Wine, your Downloads folder or on discs.").color(MUTED).size(13.5),
                             );
@@ -1349,6 +1477,9 @@ impl App {
                         ui.horizontal_wrapped(|ui| {
                             if ui.button("Search again").clicked() {
                                 act = Some("rescan".into());
+                            }
+                            if s.needs_fetch() && g.busy.is_none() && ui.button("Download now").clicked() {
+                                act = Some("fetch".into());
                             }
                             for l in &s.req.free {
                                 if ui.button(format!("Free: {}", l.label)).clicked() {
@@ -1479,6 +1610,7 @@ impl App {
             "install" => self.install(id, false),
             "host" => self.host(id),
             "rescan" => self.scan_data(id),
+            "fetch" => self.fetch_data(id, false),
             "steam" => self.add_to_steam(Some(id.to_string())),
             "addfolder" => {
                 let f = self.data_folder_input.trim().to_string();

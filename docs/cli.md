@@ -28,6 +28,7 @@ wz launch gtetrinet-ng
 wz updates gtetrinet-ng 0.1.6  # is there something newer, what changed
 wz changelog gtetrinet-ng
 wz find-data s25coop           # look for the original game files it needs
+wz fetch-data spacehog         # download freeware data the descriptor allows (pinned checksum)
 wz rollback gtetrinet-ng
 wz uninstall gtetrinet-ng
 ```

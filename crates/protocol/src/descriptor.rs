@@ -138,6 +138,12 @@ pub struct DataRequirement {
     /// Legal free sources (shareware, freeware releases).
     #[serde(default)]
     pub free: Vec<Link>,
+    /// Free downloads the launcher may fetch by itself, tried in order (the
+    /// same file from several places, or alternatives). Only for data whose
+    /// licence allows it (freeware that may be passed on unchanged); every
+    /// entry is pinned by size and SHA-256, so a changed file is never used.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fetch: Vec<Fetch>,
     /// Hand-over: run the game once with these arguments (`{path}` = what was
     /// found) — preferred, the game's own importer validates it.
     #[serde(default)]
@@ -179,6 +185,26 @@ pub struct KnownFile {
     #[serde(default = "yes")]
     pub supported: bool,
 }
+
+/// One file the launcher downloads by itself. What it holds is found like a
+/// download the player made (zips are looked into), so `files` still decides.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Fetch {
+    /// Where it comes from, shown to the player ("DOS Games Archive").
+    pub label: String,
+    /// https URL of the file itself (redirects are followed).
+    pub url: String,
+    /// Saved under this name (`sh_dos.zip`).
+    pub file: String,
+    pub size: u64,
+    pub sha256: String,
+    /// Why it may be downloaded: the licence, quoted or named. Shown to the player.
+    pub license: String,
+}
+
+/// Largest file a `[[data]] fetch` may name.
+pub const MAX_FETCH: u64 = 512 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -468,6 +494,27 @@ impl GameDescriptor {
             for l in d.buy.iter().chain(d.free.iter()) {
                 if !l.url.starts_with("https://") {
                     return bad(format!("data {}: links must be https", d.id));
+                }
+            }
+            for f in &d.fetch {
+                if !f.url.starts_with("https://") {
+                    return bad(format!("data {}: fetch urls must be https", d.id));
+                }
+                let name_ok = !f.file.is_empty()
+                    && f.file.len() <= 100
+                    && !f.file.starts_with('.')
+                    && f.file.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c));
+                if !name_ok {
+                    return bad(format!("data {}: fetch file must be a plain file name", d.id));
+                }
+                if f.size == 0 || f.size > MAX_FETCH {
+                    return bad(format!("data {}: fetch size must be 1 byte to {} MiB", d.id, MAX_FETCH >> 20));
+                }
+                if f.sha256.len() != 64 || !f.sha256.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return bad(format!("data {}: fetch needs a sha256", d.id));
+                }
+                if f.license.trim().is_empty() {
+                    return bad(format!("data {}: fetch needs the licence that allows it", d.id));
                 }
             }
         }

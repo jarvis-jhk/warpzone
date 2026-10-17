@@ -21,6 +21,10 @@
 //! Archive's `sh_dos.zip` holding `spacehog.zip`): only the part that matches
 //! is unpacked, once, into `<home>/unpacked/`, and that copy is what is found.
 //!
+//! Freeware the descriptor lists under `fetch` is downloaded by the launcher
+//! itself ([`fetch`]) into `<home>/downloads/<data id>/`, checked against its
+//! pinned size and SHA-256, and then found there like any download.
+//!
 //! Searches are bounded (depth and number of entries) and read only names, so
 //! they finish in well under a second on a normal home directory.
 
@@ -372,24 +376,94 @@ fn look_in_zip(path: &Path, req: &DataRequirement, source: &str, cache: &Path, o
 
 /// Search the usual places for `req`. `extra` adds folders the player chose.
 pub fn find(req: &DataRequirement, extra: &[PathBuf]) -> Vec<Found> {
-    find_with(req, extra, &crate::paths::home().join("unpacked"))
+    find_with(req, extra, &crate::paths::home().join("unpacked"), &fetch_dir(req))
 }
 
-/// [`find`], unpacking matches in zips into `cache`.
-fn find_with(req: &DataRequirement, extra: &[PathBuf], cache: &Path) -> Vec<Found> {
+/// Where [`fetch`] keeps what it downloaded for `req`.
+pub fn fetch_dir(req: &DataRequirement) -> PathBuf {
+    crate::paths::home().join("downloads").join(&req.id)
+}
+
+/// [`find`], unpacking matches in zips into `cache`; `fetched` is [`fetch_dir`].
+fn find_with(req: &DataRequirement, extra: &[PathBuf], cache: &Path, fetched: &Path) -> Vec<Found> {
     let mut out = Vec::new();
     let mut roots = roots_for(req);
+    if !req.fetch.is_empty() && fetched.is_dir() {
+        roots.insert(0, (fetched.to_path_buf(), "Warpzone download".into(), 1));
+    }
     for e in extra {
         roots.push((e.clone(), "Chosen folder".into(), 4));
     }
     for (root, source, depth) in roots {
         let mut budget = 20_000;
         // Zips are looked into where players put downloads, not in game installs.
-        let zips = matches!(source.as_str(), "Downloads" | "Desktop" | "Chosen folder").then_some(cache);
+        let zips = matches!(source.as_str(), "Downloads" | "Desktop" | "Chosen folder" | "Warpzone download").then_some(cache);
         walk(&root, depth, &mut budget, req, &source, zips, &mut out);
     }
     out.dedup_by(|a, b| a.path == b.path);
     out
+}
+
+/// Download `req`'s `fetch` file into [`fetch_dir`]: the first source that
+/// delivers exactly the pinned size and SHA-256 wins, a verified copy already
+/// there is kept. Afterwards [`find`] finds it (zips are looked into).
+/// `progress` gets the bytes received so far.
+pub fn fetch(api: &crate::api::Api, req: &DataRequirement, progress: &mut dyn FnMut(u64)) -> crate::Result<PathBuf> {
+    fetch_with(req, &fetch_dir(req), &mut |url, f| api.stream_url(url, f), progress)
+}
+
+type Getter<'a> = dyn FnMut(&str, &mut dyn FnMut(&mut dyn Read) -> crate::Result<String>) -> crate::Result<String> + 'a;
+
+fn fetch_with(req: &DataRequirement, dir: &Path, get: &mut Getter, progress: &mut dyn FnMut(u64)) -> crate::Result<PathBuf> {
+    use crate::Error;
+    let mut last = Error::Other(format!("{}: nothing to download", req.label));
+    for f in &req.fetch {
+        let dest = dir.join(&f.file);
+        if std::fs::metadata(&dest).is_ok_and(|m| m.len() == f.size) && hash_file(&dest).is_ok_and(|(_, h)| h.eq_ignore_ascii_case(&f.sha256)) {
+            return Ok(dest);
+        }
+        std::fs::create_dir_all(dir)?;
+        let tmp = dir.join(format!("{}.partial", f.file));
+        let r = get(&f.url, &mut |r: &mut dyn Read| {
+            use sha2::Digest as _;
+            let mut out = std::fs::File::create(&tmp)?;
+            let mut h = sha2::Sha256::new();
+            let mut buf = vec![0u8; 1 << 16];
+            let mut total = 0u64;
+            // One byte more than pinned is enough to know it is the wrong file.
+            let mut r = r.take(f.size + 1);
+            loop {
+                let n = r.read(&mut buf)?;
+                if n == 0 {
+                    break;
+                }
+                total += n as u64;
+                h.update(&buf[..n]);
+                std::io::Write::write_all(&mut out, &buf[..n])?;
+                progress(total);
+            }
+            if total != f.size {
+                return Err(Error::Other(format!("{}: got {total} bytes, expected {}", f.label, f.size)));
+            }
+            Ok(hex::encode(h.finalize()))
+        });
+        match r {
+            Ok(h) if h.eq_ignore_ascii_case(&f.sha256) => {
+                std::fs::rename(&tmp, &dest)?;
+                return Ok(dest);
+            }
+            Ok(_) => last = Error::Other(format!("{}: the file there is not the expected one (checksum)", f.label)),
+            Err(e) => last = e,
+        }
+        let _ = std::fs::remove_file(&tmp);
+        log::warn!("{}: download from {} failed: {last}", req.id, f.url);
+    }
+    Err(last)
+}
+
+/// Whether `req` can be downloaded by the launcher itself.
+pub fn fetchable(req: &DataRequirement) -> bool {
+    !req.fetch.is_empty()
 }
 
 /// Result of checking a found source against the descriptor's fingerprints.
@@ -521,6 +595,7 @@ mod tests {
             discs: false,
             buy: vec![],
             free: vec![],
+            fetch: vec![],
             import_args: vec![],
             copy_to: None,
             present: vec![],
@@ -587,7 +662,7 @@ mod tests {
         let dirs = std::slice::from_ref(&dl);
         let mut r = req(&["./SPACEHOG.DAT"]);
         r.downloads = true;
-        let f = find_with(&r, dirs, &cache);
+        let f = find_with(&r, dirs, &cache, &d.path().join("none"));
         assert_eq!(f.len(), 2, "{f:?}");
         let top = f.iter().find(|f| f.source.starts_with("sh_dos.zip")).unwrap();
         assert_eq!(std::fs::read(top.path.join("SPACEHOG.DAT")).unwrap(), b"dat");
@@ -598,15 +673,62 @@ mod tests {
         assert_eq!(std::fs::read(sub.path.join("spacehog.dat")).unwrap(), b"dat2");
         assert!(!sub.path.join("../../y.txt").exists());
         // A second scan reuses the unpacked copy.
-        assert_eq!(find_with(&r, dirs, &cache), f);
+        assert_eq!(find_with(&r, dirs, &cache, &d.path().join("none")), f);
         // File patterns find the single file.
-        let f = find_with(&req(&["shlev.dat"]), dirs, &cache);
+        let f = find_with(&req(&["shlev.dat"]), dirs, &cache, &d.path().join("none"));
         assert_eq!(f.len(), 1);
         assert_eq!(std::fs::read(&f[0].path).unwrap(), b"lev");
         // Unsafe entries unpack nothing.
         std::fs::write(dl.join("evil.zip"), zip_bytes(&[("../SPACEHOG.DAT", b"no")])).unwrap();
-        assert_eq!(find_with(&r, dirs, &cache).len(), 2);
+        assert_eq!(find_with(&r, dirs, &cache, &d.path().join("none")).len(), 2);
         assert!(!cache.join("SPACEHOG.DAT").exists() && !d.path().join("SPACEHOG.DAT").exists());
+    }
+
+    #[test]
+    fn fetches_pinned_files_and_finds_them() {
+        use sha2::Digest;
+        let d = tempfile::tempdir().unwrap();
+        let (fetched, cache) = (d.path().join("downloads/game"), d.path().join("cache"));
+        let inner = zip_bytes(&[("SPACEHOG.DAT", b"dat"), ("SHLEV.DAT", b"lev")]);
+        let good = zip_bytes(&[("spacehog.zip", &inner)]);
+        let mut r = req(&["./SPACEHOG.DAT"]);
+        r.downloads = false;
+        let entry = |url: &str| warpzone_protocol::descriptor::Fetch {
+            label: url.into(),
+            url: url.into(),
+            file: "sh_dos.zip".into(),
+            size: good.len() as u64,
+            sha256: hex::encode(sha2::Sha256::digest(&good)),
+            license: "freeware".into(),
+        };
+        // A changed file, a broken mirror, then the right one.
+        r.fetch = vec![entry("https://changed"), entry("https://down"), entry("https://good")];
+        let asked = std::cell::RefCell::new(Vec::new());
+        let mut get = |url: &str, f: &mut dyn FnMut(&mut dyn Read) -> crate::Result<String>| {
+            asked.borrow_mut().push(url.to_string());
+            match url {
+                "https://changed" => f(&mut &zip_bytes(&[("SPACEHOG.DAT", b"other")])[..]),
+                "https://down" => Err(crate::Error::Network("HTTP 503".into())),
+                _ => f(&mut &good[..]),
+            }
+        };
+        let p = fetch_with(&r, &fetched, &mut get, &mut |_| {}).unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), good);
+        assert_eq!(*asked.borrow(), ["https://changed", "https://down", "https://good"]);
+        assert!(!fetched.join("sh_dos.zip.partial").exists());
+        // Already there: nothing is downloaded again.
+        let mut none = |_: &str, _: &mut dyn FnMut(&mut dyn Read) -> crate::Result<String>| -> crate::Result<String> { panic!("downloaded twice") };
+        assert_eq!(fetch_with(&r, &fetched, &mut none, &mut |_| {}).unwrap(), p);
+        // And the search finds the game files in it.
+        let f = find_with(&r, &[], &cache, &fetched);
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].source, "sh_dos.zip in Warpzone download");
+        assert_eq!(std::fs::read(f[0].path.join("SHLEV.DAT")).unwrap(), b"lev");
+        // Only wrong files: an error, nothing kept.
+        r.fetch = vec![entry("https://changed")];
+        let other = d.path().join("other");
+        assert!(fetch_with(&r, &other, &mut get, &mut |_| {}).is_err());
+        assert!(!other.join("sh_dos.zip").exists() && !other.join("sh_dos.zip.partial").exists());
     }
 
     #[test]

@@ -34,6 +34,7 @@ Games:
   installed                      games installed here
   launch <game> [args...]        start an installed game
   find-data <game> [folder...]   look for the original game data this game needs
+  fetch-data <game>              download the freeware data the descriptor allows (checksum-pinned)
   rollback <game>                go back to the previously installed version
   uninstall <game>               remove an installed game
 
@@ -207,12 +208,29 @@ fn main() {
                 }
                 if found.is_empty() && !present {
                     println!("  not found. Looked in Steam, GOG/Heroic/Lutris/Wine, Downloads and discs.");
+                    for f in r.fetch.iter().take(1) {
+                        println!("  free download: `wz fetch-data {}` gets it from {} ({})", desc.id, f.label, f.license);
+                    }
                     for l in r.free.iter() {
                         println!("  free: {} {}", l.label, l.url);
                     }
                     for l in r.buy.iter() {
                         println!("  buy:  {} {}", l.label, l.url);
                     }
+                }
+            }
+        }
+        "fetch-data" => {
+            let api = api(&server);
+            let desc = ok(api.game(arg(a, 1, "game")));
+            if !desc.data.iter().any(warpzone_core::gamedata::fetchable) {
+                die(&format!("{} has no game data the launcher may download; see `wz find-data {}`", desc.name, desc.id));
+            }
+            for r in desc.data.iter().filter(|r| warpzone_core::gamedata::fetchable(r)) {
+                let p = ok(warpzone_core::gamedata::fetch(&api, r, &mut |_| {}));
+                println!("{} — downloaded and verified: {}", r.label, p.display());
+                for f in warpzone_core::gamedata::find(r, &[]) {
+                    println!("  found ({}) {}", f.source, f.path.display());
                 }
             }
         }

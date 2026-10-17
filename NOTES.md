@@ -1,5 +1,26 @@
 # Notes
 
+- 2026-10-17 (request t_mvbmwmyb22k8db, Jan: "if there are no legal hurdles,
+  it should download the original freeware games itself"): new
+  `[[data]] fetch` (url, file, size, sha256, license). Launcher downloads it on
+  Install/Play/"Download now" into <home>/downloads/<data id>/, keeps it only
+  with the pinned size+sha256, then finds it like a download (zip lookup).
+  `wz fetch-data <game>`. Server strips `fetch` for warpzone-core 0.1.0-0.1.2
+  (all deny_unknown_fields). spacehog.toml: DGA file.php?id=1001 (sh_dos.zip),
+  fallback Wayback copy of the author's own spacehog.zip (byte-identical to the
+  one inside sh_dos.zip); both tested end to end with a local server (fallback
+  with a broken first URL). Licence: README.TXT "encouraged to distribute this
+  game (in it's original form) like crazy", not in commercial compilations.
+  Legal check of the others: funny-furries has only "(c) BdJ Entertainment",
+  no permission to pass it on, so no fetch; diablo spawn.mpq (shareware,
+  devilutionx-assets) left out for now: it is an extracted file, not the
+  original shareware package; opents (EA freeware via CnCNet installer) left
+  out. Launcher UI not screenshotted: .toolchain Xvfb needs glibc 2.38, the
+  worker container has older. DEPLOY ORDER: spacehog.toml with `fetch` goes
+  to vtt only after a server with this code (0.1.3) runs there (the server
+  parses descriptors with deny_unknown_fields; 0.1.1/0.1.2 servers would
+  skip the whole file).
+
 - 2026-10-17 (request t_mvbmjbcg1yxavd, Jan): the launcher/`wz find-data`
   now look into .zip files (and one level of zips inside) in Downloads,
   Desktop and chosen folders and unpack only the match into

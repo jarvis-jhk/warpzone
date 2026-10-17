@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Launcher and `wz fetch-data`: freeware game data is downloaded by the
+  launcher itself when it is not found (on Install, Play or *Download now*),
+  from the sources the descriptor lists under the new `[[data]] fetch`, each
+  pinned by size and SHA-256 and shown with the licence that allows it.
+  Operation Spacehog's original data now comes this way (DOS Games Archive,
+  else the author's 2000 site on the Wayback Machine). Servers leave `fetch`
+  out for launchers up to 0.1.2.
+
 - Launcher and `wz find-data`: game files are also found inside `.zip`
   downloads (and zips inside them) in Downloads, on the Desktop and in chosen
   folders, e.g. the DOS Games Archive's `sh_dos.zip` for Operation Spacehog;
