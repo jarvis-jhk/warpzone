@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Launcher: *Browse…* next to "Files elsewhere?" opens the desktop's folder
+  dialog (zenity or kdialog on Linux and the Deck, the standard dialog on
+  Windows and macOS) and searches the chosen folder; typing the path still
+  works.
+
+- Launcher: smaller library tiles — five columns in the default window, so
+  ten games fit without scrolling; the status line is cut short (full text on
+  hover) instead of running under the buttons.
+
 - Launcher and `wz fetch-data`: freeware game data is downloaded by the
   launcher itself when it is not found (on Install, Play or *Download now*),
   from the sources the descriptor lists under the new `[[data]] fetch`, each

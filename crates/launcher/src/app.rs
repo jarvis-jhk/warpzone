@@ -1132,6 +1132,12 @@ fn primary_button(ui: &mut egui::Ui, text: &str, big: bool) -> egui::Response {
     ui.add(b)
 }
 
+/// The compact primary button of a library tile.
+fn tile_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    let t = RichText::new(text).color(Color32::WHITE).strong().size(14.0);
+    ui.add(egui::Button::new(t).fill(ACCENT).corner_radius(CornerRadius::same(8)).min_size(Vec2::new(76.0, 28.0)))
+}
+
 impl App {
     fn top_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
@@ -1197,7 +1203,9 @@ impl App {
             );
         }
         let avail = ui.available_width();
-        let cols = ((avail + 16.0) / (330.0 + 16.0)).floor().max(1.0) as usize;
+        // Small tiles: five columns in the default 1280×800 window, so a
+        // library of ten games fits without scrolling.
+        let cols = ((avail + 16.0) / (220.0 + 16.0)).floor().max(1.0) as usize;
         let w = (avail - 16.0 * (cols as f32 - 1.0)) / cols as f32;
         let ids: Vec<String> = self
             .games
@@ -1209,7 +1217,7 @@ impl App {
             for row in ids.chunks(cols) {
                 ui.horizontal_top(|ui| {
                     for id in row {
-                        ui.allocate_ui(Vec2::new(w, 260.0), |ui| self.tile(ui, id, w));
+                        ui.allocate_ui(Vec2::new(w, 200.0), |ui| self.tile(ui, id, w));
                         ui.add_space(16.0 - ui.spacing().item_spacing.x);
                     }
                 });
@@ -1250,10 +1258,10 @@ impl App {
                     ui.horizontal(|ui| {
                         let status = match (&g.installed, &primary) {
                             (_, Primary::Busy(b)) => b.clone(),
-                            (_, Primary::Running) => "Running — the launcher is minimized while you play".into(),
+                            (_, Primary::Running) => "Playing".into(),
                             (Some(i), Primary::Update) => format!("{} - update ready", i.version),
                             (Some(i), _) => format!("Installed {}", i.version),
-                            (None, Primary::FindData) => "Needs your game files".into(),
+                            (None, Primary::FindData) => String::new(),
                             (None, Primary::Unavailable(s)) => s.clone(),
                             (None, _) => g
                                 .release
@@ -1261,7 +1269,6 @@ impl App {
                                 .map(|r| format!("{} · {}", r.version, install::asset_for(r, install::platform()).map(|a| mb(a.1.size)).unwrap_or_default()))
                                 .unwrap_or_default(),
                         };
-                        ui.label(RichText::new(status).color(MUTED).size(13.0));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.menu_button(RichText::new("...").size(15.0), |ui| {
                                 if ui.button("Open game page").clicked() {
@@ -1275,17 +1282,17 @@ impl App {
                             });
                             match &primary {
                                 Primary::Play => {
-                                    if primary_button(ui, "Play", false).clicked() {
+                                    if tile_button(ui, "Play").clicked() {
                                         act = Some("play");
                                     }
                                 }
                                 Primary::Install => {
-                                    if primary_button(ui, "Install", false).clicked() {
+                                    if tile_button(ui, "Install").clicked() {
                                         act = Some("install");
                                     }
                                 }
                                 Primary::Update => {
-                                    if primary_button(ui, "Update", false).clicked() {
+                                    if tile_button(ui, "Update").clicked() {
                                         act = Some("install");
                                     }
                                 }
@@ -1298,16 +1305,17 @@ impl App {
                                     if let Some((d, t)) = g.progress
                                         && t > 0
                                     {
-                                        ui.add(egui::ProgressBar::new(d as f32 / t as f32).desired_width(110.0));
+                                        ui.add(egui::ProgressBar::new(d as f32 / t as f32).desired_width(80.0));
                                     } else {
                                         ui.spinner();
                                     }
                                 }
-                                Primary::Unavailable(_) => {}
-                                Primary::Running => {
-                                    ui.add_enabled(false, egui::Button::new("Running"));
-                                }
+                                Primary::Unavailable(_) | Primary::Running => {}
                             }
+                            // What is left of the row, truncated (full text on hover).
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                ui.add(egui::Label::new(RichText::new(status).color(MUTED).size(13.0)).truncate());
+                            });
                         });
                     });
                     if let Some(e) = &g.error {
@@ -1333,6 +1341,15 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// Remember an extra folder to search for game files and search again.
+    fn add_data_folder(&mut self, id: &str, f: String) {
+        if !f.is_empty() && !self.settings.data_folders.contains(&f) {
+            self.settings.data_folders.push(f);
+            self.settings.save();
+        }
+        self.scan_data(id);
     }
 
     fn game_page(&mut self, ui: &mut egui::Ui, id: &str) {
@@ -1496,8 +1513,12 @@ impl App {
                     ui.add_space(6.0);
                 }
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Files elsewhere? Add a folder to search:").color(MUTED).size(13.5));
-                    ui.add(egui::TextEdit::singleline(&mut self.data_folder_input).hint_text("/path/to/folder").desired_width(320.0));
+                    ui.label(RichText::new("Files elsewhere?").color(MUTED).size(13.5));
+                    if ui.button("Browse…").on_hover_text("Choose the folder with the game files; a .zip download in it is found too").clicked() {
+                        act = Some("browse".into());
+                    }
+                    ui.label(RichText::new("or type it:").color(MUTED).size(13.5));
+                    ui.add(egui::TextEdit::singleline(&mut self.data_folder_input).hint_text("/path/to/folder").desired_width(280.0));
                     if ui.button("Add & search").clicked() {
                         act = Some("addfolder".into());
                     }
@@ -1614,12 +1635,23 @@ impl App {
             "steam" => self.add_to_steam(Some(id.to_string())),
             "addfolder" => {
                 let f = self.data_folder_input.trim().to_string();
-                if !f.is_empty() && !self.settings.data_folders.contains(&f) {
-                    self.settings.data_folders.push(f);
-                    self.settings.save();
-                }
                 self.data_folder_input.clear();
-                self.scan_data(id);
+                self.add_data_folder(id, f);
+            }
+            "browse" => {
+                let gid = id.to_string();
+                let title = format!("Folder with the files for {}", self.games[gi].desc.name);
+                self.jobs.run(move || {
+                    let r = system::pick_folder(&title);
+                    Box::new(move |app: &mut App| match r {
+                        Ok(Some(p)) => app.add_data_folder(&gid, p.display().to_string()),
+                        Ok(None) => {}
+                        Err(e) => {
+                            log::warn!("folder dialog: {e}");
+                            app.toast("No folder dialog on this system (zenity or kdialog): type the path instead");
+                        }
+                    })
+                });
             }
             "rollback" => match install::rollback(id) {
                 Ok(i) => {

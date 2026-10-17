@@ -129,3 +129,51 @@ pub fn open(target: &str) {
         log::warn!("open {target}: {e}");
     }
 }
+
+/// Ask the user for a folder with the desktop's own dialog. Blocks until the
+/// dialog closes, so call it from a job. `Err` when no dialog program exists,
+/// `Ok(None)` when the user cancelled.
+pub fn pick_folder(title: &str) -> std::io::Result<Option<PathBuf>> {
+    let start = home().unwrap_or_default();
+    let mut tries: Vec<std::process::Command> = Vec::new();
+    if cfg!(windows) {
+        // Windows PowerShell 5.1 runs STA, which FolderBrowserDialog needs.
+        let script = format!(
+            "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; \
+             $d=New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description='{}'; $d.ShowNewFolderButton=$false; \
+             if($d.ShowDialog() -eq 'OK'){{ $d.SelectedPath }}",
+            title.replace('\'', "''")
+        );
+        let mut c = std::process::Command::new("powershell");
+        c.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
+        tries.push(c);
+    } else if cfg!(target_os = "macos") {
+        let mut c = std::process::Command::new("osascript");
+        c.args(["-e", &format!("POSIX path of (choose folder with prompt \"{}\")", title.replace('"', "'"))]);
+        tries.push(c);
+    } else {
+        // zenity on GNOME/Cinnamon/most desktops, kdialog on KDE and the Steam Deck.
+        let mut z = std::process::Command::new("zenity");
+        z.args(["--file-selection", "--directory", "--title", title, "--filename"]).arg(format!("{}/", start.display()));
+        tries.push(z);
+        let mut k = std::process::Command::new("kdialog");
+        k.args(["--title", title, "--getexistingdirectory"]).arg(&start);
+        tries.push(k);
+    }
+    let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, "no folder dialog found (zenity or kdialog)");
+    for mut c in tries {
+        match c.stderr(std::process::Stdio::null()).output() {
+            Ok(out) => {
+                let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                return Ok((out.status.success() && !p.is_empty()).then(|| PathBuf::from(p)));
+            }
+            Err(e) => last = e,
+        }
+    }
+    Err(last)
+}

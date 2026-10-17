@@ -1,5 +1,20 @@
 # Notes
 
+- 2026-10-17 (requests t_mvbnkjww2aer1t, t_mvbnmbg02coger, t_mvbnncjq2d7bh8,
+  Jan): diablo2-couch has linux/deck again (v0.0.5 tarball needs glibc 2.28;
+  exec is d2d, like d2d.exe on Windows, not the Qt d2d-launcher). THE 0.1.2
+  SERVER DEPLOY IS DONE (Jan approved via the gateway; data backed up to vtt
+  /root/warpzone-data.bak-20261017) and main's games/*.toml are on vtt, except
+  spacehog.toml there has no `fetch` (0.1.2 rejects it; checked with the real
+  v0.1.2 binary's check-games): push main's spacehog.toml only with 0.1.3.
+  vtt's opens4.toml is not in this repo (opens4 lane) and has no
+  local_players. Player-count icons were missing because 0.1.1 stripped
+  local_players; launchers <= 0.1.1 still get it stripped. Launcher: Browse…
+  folder dialog (zenity/kdialog/PowerShell/osascript, no new crate; the
+  Windows path is not compiled here, no mingw) and 5-column tiles; shots in
+  the worker with system Xvfb + libXcursor/libXi from deb.debian.org in
+  .toolchain/xlibs (LD_LIBRARY_PATH).
+
 - 2026-10-17 (request t_mvbmwmyb22k8db, Jan: "if there are no legal hurdles,
   it should download the original freeware games itself"): new
   `[[data]] fetch` (url, file, size, sha256, license). Launcher downloads it on
