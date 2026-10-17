@@ -3,7 +3,7 @@ id = "diablo2-couch"
 name = "Diablo 2 Couch"
 tagline = "Diablo II: Lord of Destruction for up to four players on one screen — one sofa, one hero each."
 description = """
-Couch co-op for Diablo II, built on D2Decomp, an open reimplementation of the engine: one shared camera, one controller and one hero per player, and personal inventories that never pause the game. Windows today; Linux and the Steam Deck follow."""
+Couch co-op for Diablo II, built on D2Decomp, an open reimplementation of the engine: one shared camera, one controller and one hero per player, and personal inventories that never pause the game. Linux, the Steam Deck and Windows."""
 homepage = "https://github.com/jarvis-jhk/diablo2-couch"
 accent = "#a16207"
 tier = 0
@@ -18,15 +18,12 @@ github = "jarvis-jhk/diablo2-couch"
 prerelease = true
 # CPack names, case as built: d2d-<version>-Linux-x86_64.tar.gz, d2d-<version>-Windows-AMD64.zip,
 # each with one top-level folder of the same name (verified on CI artifacts of dbf5db0).
-# Windows only for now: the Linux tarball of v0.0.1 is built on ubuntu-latest
-# and needs glibc 2.43 (no start on Mint 22 or SteamOS), and the launcher cannot
-# install the portable .flatpak bundle. Put these back once the diablo2 lane
-# ships an older-glibc tarball (its M2):
-#   linux/deck = "d2d-*-Linux-x86_64.tar.gz", exec "d2d-*-Linux-x86_64/d2d"
-assets = { windows = "d2d-*-Windows-AMD64.zip" }
+# Linux/Deck since v0.0.5: the tarball brings its own libraries and needs
+# glibc 2.28 (v0.0.1-0.0.4 needed 2.43). The .flatpak bundles are not used.
+assets = { linux = "d2d-*-Linux-x86_64.tar.gz", deck = "d2d-*-Linux-x86_64.tar.gz", windows = "d2d-*-Windows-AMD64.zip" }
 
 [launch]
-exec = { windows = "d2d-*-Windows-AMD64/d2d.exe" }
+exec = { linux = "d2d-*-Linux-x86_64/d2d", deck = "d2d-*-Linux-x86_64/d2d", windows = "d2d-*-Windows-AMD64/d2d.exe" }
 
 [[data]]
 id = "d2lod"
