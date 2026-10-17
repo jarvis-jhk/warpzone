@@ -1,18 +1,19 @@
 # Operation Spacehog — JARVIS's native port of the 2000 DOS freeware shoot'em up,
 # verified tick by tick against the original. Needs the freeware's original data
 # files; the game reads the folder the launcher found from WARPZONE_DATA_GAME.
-# Roadmap: lockstep netplay for 2 (later 4) players, mods as per-object overrides
-# of the original datafiles, score leaderboards.
+# Online co-op for 2 players: lockstep over Warpzone rooms (--warpzone-host,
+# --warpzone-join {room}). Roadmap: 4 players, mods as per-object overrides of the
+# original datafiles, score leaderboards.
 id = "spacehog"
 name = "Operation Spacehog"
-tagline = "The 2000 freeware shoot'em up, ported natively and verified tick by tick against the DOS original, for one or two players with gamepads."
+tagline = "The 2000 freeware shoot'em up, ported natively and verified tick by tick against the DOS original, for one or two players with gamepads, at home or online."
 description = """
 A native port of Operation Spacehog 1.01 by Free Lunch Design: same logic, timing, graphics and FM music as the DOS original, with a resizable window, fullscreen and gamepads for both players. Linux, Windows and the Steam Deck.
 
-The game data is the original freeware release, free to download; the launcher finds it in your Downloads folder. Warpzone will bring online co-op, score leaderboards and mods."""
+The game data is the original freeware release, free to download; the launcher finds it in your Downloads folder. Two players can also play together online: one hosts a room, the other joins it from the launcher or with the room code. Score leaderboards and mods come later."""
 homepage = "https://github.com/jarvis-jhk/spacehog"
 accent = "#a855f7"
-tier = 0
+tier = 2
 local_players = 2
 status = "preview"
 requires = "the original Operation Spacehog freeware data (SPACEHOG.DAT and three more files), a free download"
@@ -25,35 +26,16 @@ assets = { linux = "spacehog-linux-x86_64.tar.gz", deck = "spacehog-linux-x86_64
 
 [launch]
 exec = { linux = "spacehog/spacehog", deck = "spacehog/spacehog", windows = "spacehog/spacehog.exe" }
+join = ["--warpzone-join", "{room}"]
+host = ["--warpzone-host"]
 
 [rooms]
-max_players = 4
+max_players = 2
 presets = [{ id = "coop", label = "co-op" }]
 display = [{ key = "level", label = "Level" }]
 
-[mods]
-contains_code = false
-max_size_mb = 16
-categories = [
-  { id = "level", label = "Levels" },
-  { id = "graphics", label = "Graphics" },
-  { id = "ship", label = "Ships" },
-  { id = "sound", label = "Sounds" },
-  { id = "music", label = "Music" },
-  { id = "campaign", label = "Campaigns" },
-]
-
-[[leaderboards]]
-id = "score-1p"
-title = "High score, one player"
-kind = "score"
-seasonal = true
-
-[[leaderboards]]
-id = "score-2p"
-title = "High score, two players"
-kind = "score"
-seasonal = true
+# [mods] (categories level, graphics, ship, sound, music, campaign) and the
+# leaderboards score-1p / score-2p come back when the game implements them.
 
 [[data]]
 id = "game"
