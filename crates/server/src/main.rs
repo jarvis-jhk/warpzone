@@ -16,6 +16,7 @@ mod db;
 mod error;
 mod faults;
 mod feedback;
+mod http;
 mod ladder;
 mod modstore;
 mod relay;

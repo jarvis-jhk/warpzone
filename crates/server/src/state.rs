@@ -162,7 +162,7 @@ impl State {
     pub fn notify(&self, text: String) {
         let Some(url) = self.cfg.notify_url.clone() else { return };
         tokio::task::spawn_blocking(move || {
-            if let Err(e) = ureq::post(&url).header("Title", "Warpzone").send(text.as_bytes()) {
+            if let Err(e) = ureq::Agent::new_with_config(crate::http::http_config().build()).post(&url).header("Title", "Warpzone").send(text.as_bytes()) {
                 log::warn!("notify failed: {e}");
             }
         });

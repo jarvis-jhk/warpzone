@@ -107,7 +107,7 @@ fn forward(state: &AppState, id: i64, game_name: &str, title: &str, req: &Feedba
     });
     let st = state.clone();
     tokio::task::spawn_blocking(move || {
-        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(TIMEOUT)).build().into();
+        let agent: ureq::Agent = crate::http::http_config().timeout_global(Some(TIMEOUT)).build().into();
         match agent.post(&url).send_json(&body) {
             Ok(_) => {
                 let _ = st.db().execute("UPDATE feedback SET forwarded = ?2 WHERE id = ?1", params![id, now()]);

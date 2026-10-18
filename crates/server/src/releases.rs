@@ -13,7 +13,12 @@ pub const LAUNCHER: &str = "@launcher";
 
 fn fetch(install: &Install) -> Result<(Option<ReleaseInfo>, Vec<ChangelogEntry>), String> {
     let url = format!("https://api.github.com/repos/{}/releases?per_page=10", install.github);
-    let mut resp = ureq::get(&url).header("User-Agent", "warpzone-server").header("Accept", "application/vnd.github+json").call().map_err(|e| e.to_string())?;
+    let mut resp = ureq::Agent::new_with_config(crate::http::http_config().build())
+        .get(&url)
+        .header("User-Agent", "warpzone-server")
+        .header("Accept", "application/vnd.github+json")
+        .call()
+        .map_err(|e| e.to_string())?;
     let list: serde_json::Value = resp.body_mut().read_json().map_err(|e| e.to_string())?;
     let list = list.as_array().ok_or("unexpected GitHub response")?;
     let usable = |r: &&serde_json::Value| !r["draft"].as_bool().unwrap_or(false);

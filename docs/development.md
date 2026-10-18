@@ -51,6 +51,27 @@ codes, knocking, direct and forced-relay encrypted traffic, ordered reliable
 delivery, a rated ranked match, leaderboards, and mod upload → moderation →
 resolve → sync.
 
+## Pure-Rust crypto
+
+Peer channels, identities and signatures (X25519, ChaCha20-Poly1305, HKDF,
+Ed25519, SHA-2) are pure Rust in every build. HTTPS (rustls) needs a crypto
+provider, chosen by a cargo feature on every crate:
+
+```sh
+cargo build --workspace                                                  # ring (C + assembly), the default
+cargo build --workspace --no-default-features --features pure-rust-crypto  # RustCrypto, no ring at all
+cargo tree -p warpzone-cli --no-default-features --features pure-rust-crypto -i ring   # prints nothing
+```
+
+`pure-rust-crypto` uses `rustls-rustcrypto` (RustCrypto's provider, still an
+alpha and not audited), so `ring` stays the default and the release builds
+use it. If both features are on, `pure-rust-crypto` is used. Every outgoing
+HTTP request goes through `warpzone_core::http_config()` (server:
+`http::http_config()`), which installs the chosen provider on the agent;
+build agents from it, never with `ureq::get`/`ureq::Agent::config_builder()`
+directly. Other C in the tree is unaffected (the server's bundled SQLite, the
+launcher's system libraries).
+
 ## Running locally
 
 ```sh

@@ -11,6 +11,12 @@ rust-version.workspace = true
 name = "warpzone"
 path = "src/main.rs"
 
+# TLS crypto, passed on to warpzone-core: see its Cargo.toml.
+[features]
+default = ["ring"]
+ring = ["warpzone-core/ring"]
+pure-rust-crypto = ["warpzone-core/pure-rust-crypto"]
+
 [dependencies]
 warpzone-core.workspace = true
 warpzone-protocol.workspace = true

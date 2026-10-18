@@ -42,7 +42,7 @@ pub fn qs(v: &str) -> String {
 
 impl Api {
     pub fn new(base: &str, identity: Arc<Identity>) -> Api {
-        let agent: ureq::Agent = ureq::Agent::config_builder()
+        let agent: ureq::Agent = crate::http_config()
             .timeout_connect(Some(Duration::from_secs(10)))
             .timeout_global(Some(Duration::from_secs(60)))
             .http_status_as_error(false)

@@ -1,5 +1,18 @@
 # Notes
 
+- 2026-10-18 (request t_mvczzhug1bsbc6, Jan: "Give Warpzone an option to use
+  pure-Rust crypto"): cargo feature `pure-rust-crypto` on every crate
+  (default `ring`). Only HTTPS used non-Rust crypto (ureq -> rustls -> ring);
+  now ureq is `rustls-no-provider` + webpki roots and every agent comes from
+  `http_config()` (core lib.rs, server http.rs) with rustls-rustcrypto
+  0.0.2-alpha when the feature is on. Verified: `wz games` over HTTPS
+  against the live server, workspace tests and clippy in both modes, no ring
+  in the pure tree (CI step added). Release builds stay on ring: the
+  provider is alpha/unaudited (pulls rsa 0.9, which has the Marvin timing
+  advisory RUSTSEC-2023-0071 — only matters for RSA private-key use, the
+  client only verifies). Do not use the look-alike "oxitls-*" crates.
+  Not told Jan (releases-only lane).
+
 - 2026-10-18 (Jan: "make sure that the warpzone lane can update the running
   server without nagging me"): the vtt release pin moved out of `.env` into
   `/root/warpzone/docker-compose.override.yml` (Compose merges it by itself;

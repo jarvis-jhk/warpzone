@@ -97,7 +97,7 @@ impl Reporter {
     }
 
     fn send(&self, body: serde_json::Value) {
-        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(TIMEOUT)).build().into();
+        let agent: ureq::Agent = crate::http::http_config().timeout_global(Some(TIMEOUT)).build().into();
         if let Err(e) = agent.post(&self.cfg.url).send_json(&body) {
             // Not log::error: that would report the failed report.
             eprintln!("{} WARN  fault report failed: {e}", warpzone_protocol::now());

@@ -11,6 +11,14 @@ rust-version.workspace = true
 name = "warpzone-server"
 path = "src/main.rs"
 
+# TLS crypto for HTTPS (all other crypto is pure Rust already): `ring` (C and
+# assembly, the default) or `pure-rust-crypto` (RustCrypto, no C compiler
+# needed; wins when both are on). docs/development.md, "Pure-Rust crypto".
+[features]
+default = ["ring"]
+ring = ["ureq/rustls", "warpzone-core/ring"]
+pure-rust-crypto = ["dep:rustls-rustcrypto", "warpzone-core/pure-rust-crypto"]
+
 [dependencies]
 warpzone-protocol.workspace = true
 serde.workspace = true
@@ -28,7 +36,8 @@ axum = { version = "0.8", default-features = false, features = ["http1", "json",
 tokio-util = { version = "0.7", features = ["io"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 socket2 = "0.6"
-ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "rustls-webpki-roots", "json"] }
+rustls-rustcrypto = { version = "0.0.2-alpha", optional = true }
 
 [dev-dependencies]
 tempfile = "3"

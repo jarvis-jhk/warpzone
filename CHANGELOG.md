@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Build option: pure-Rust crypto. `--no-default-features --features
+  pure-rust-crypto` builds every crate (server, libwarpzone, `wz`, launcher)
+  with RustCrypto's rustls provider for HTTPS instead of `ring`, so no C
+  compiler or assembler is involved in any crypto. The default stays `ring`;
+  release builds are unchanged.
+
 - Rooms: a host that cannot reach the server any more now finds out. Failed
   heartbeats used to pass silently while the server closed the room for the
   guests after 45 s, so the guests saw `RoomClosed` and the host waited
