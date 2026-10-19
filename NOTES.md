@@ -6,7 +6,8 @@
   each glyph is several overlapping shapes, so alpha added up at overlaps.
   Now opaque rgb(132,132,148). Before/after checked in Xvfb :217 shots
   (GTetrinet tile). Android TileView draws only pad/globe, already opaque:
-  no change. RELEASED v0.1.10 (launcher only, vtt not redeployed).
+  no change. RELEASED v0.1.10 (launcher only, vtt not redeployed); CI
+  release green, CI-built APK published to apkup (versionCode 1010).
 
 - 2026-10-19 (requests t_mvfj9piaafteb, t_mvfjbczncgs7h, t_mvfjfeafd41kf,
   Jan's Deck + Android tests): RELEASED v0.1.9 (launcher/core/capi; server
