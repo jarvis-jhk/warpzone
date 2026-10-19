@@ -22,7 +22,11 @@
   arm64-only), rooms, feedback (arrived in the server DB), landscape. Not
   tested: starting/joining an installed game (no arm device in this lane's
   gateway scope). Asked baba-port lane to read `warpzone.args` (+ code) and
-  to add android to its descriptor.
+  to add android to its descriptor (t_mvf5m9ue0wt0n). DEPLOYED 0.1.6 on vtt
+  (backup backups/warpzone-0.1.3-*; override pinned to 0.1.6; server.toml
+  [launcher] assets has android; vtt's baba-port.toml has the android asset
+  and exec = org.babaport). APK published to JARVIS apkup (versionCode 1006,
+  the CI-built release asset).
 
 - 2026-10-19 (request t_mvf2g738gp1g8, Jan: "assuming the launcher updates
   itself automatically everywhere; if not, make it"): it did not quite —
