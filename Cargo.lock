@@ -4053,7 +4053,7 @@ dependencies = [
 
 [[package]]
 name = "warpzone-capi"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "serde_json",
  "warpzone-core",
@@ -4062,7 +4062,7 @@ dependencies = [
 
 [[package]]
 name = "warpzone-cli"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "serde",
  "serde_json",
@@ -4072,7 +4072,7 @@ dependencies = [
 
 [[package]]
 name = "warpzone-core"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "base64 0.22.1",
  "chacha20poly1305",
@@ -4101,7 +4101,7 @@ dependencies = [
 
 [[package]]
 name = "warpzone-launcher"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "ab_glyph",
  "crc32fast",
@@ -4119,7 +4119,7 @@ dependencies = [
 
 [[package]]
 name = "warpzone-protocol"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -4135,7 +4135,7 @@ dependencies = [
 
 [[package]]
 name = "warpzone-server"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "axum",
  "base64 0.22.1",

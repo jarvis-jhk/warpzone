@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8
+
+- Android launcher: installing a game no longer loses track of it when the
+  library reloads on return from Android's install confirmation. The progress
+  bar kept updating a stale copy, the busy state could stick, and the
+  installed package was not remembered for the game shown.
+- `server.example.toml`: `[launcher] checksums = "SHA256SUMS"`, so launcher
+  releases on the website and in the update API carry their checksum file.
+
 ## 0.1.7
 
 Launcher, from Steam Deck testing:

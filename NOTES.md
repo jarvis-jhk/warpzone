@@ -1,5 +1,17 @@
 # Notes
 
+- 2026-10-19 (request t_mvficftd89g0q, Jan: "Warpzone bugfix on the laptop.
+  Check it and make a release if it's valid"): the uncommitted fix was
+  valid. Installer callbacks held the Game `g` captured at tap time, but
+  onResume (back from Android's install confirm) runs loadGames ->
+  setGames, which replaces every Game object; progress/done then updated a
+  copy no longer in `games` (busy stuck on the shown one, pkg not set on it).
+  Callbacks now look the game up by id. Also server.example.toml [launcher]
+  gains `checksums = "SHA256SUMS"` (vtt's server.toml may want the same; not
+  changed here — launcher-only release, vtt stays on 0.1.6). RELEASED v0.1.8.
+  APK built locally (debug key) to check it compiles; published the CI-built
+  release APK (versionCode 1008).
+
 - 2026-10-19 (request t_mvfei07s6j5ju, Jan's Steam Deck test): RELEASED
   v0.1.7, launcher-only (vtt stays on 0.1.6). D-pad focus never scrolled:
   egui saves a scroll request made before a ScrollArea begins and puts it

@@ -490,21 +490,30 @@ public class MainActivity extends Activity {
         g.busy = "Starting…";
         g.progress = -1;
         render();
+        // A reload of the library (on return from Android's confirm dialog)
+        // replaces the Game objects: follow the current one by id.
         Installer.install(this, g.name, g.release, g.asset(), new Installer.Listener() {
+            private Game now() {
+                Game c = game(g.id);
+                return c != null ? c : g;
+            }
+
             @Override
             public void progress(String what, int pct) {
-                g.busy = what;
-                g.progress = pct;
-                showBusy(g);
+                Game c = now();
+                c.busy = what;
+                c.progress = pct;
+                showBusy(c);
             }
 
             @Override
             public void done(String error) {
-                g.busy = null;
-                g.progress = -1;
-                if (error == null && g.pkg == null) {
-                    g.pkg = Installer.lastPackage;
-                    WzApp.app.prefs.edit().putString("pkg." + g.id, g.pkg).apply();
+                Game c = now();
+                c.busy = null;
+                c.progress = -1;
+                if (error == null && c.pkg == null) {
+                    c.pkg = Installer.lastPackage;
+                    WzApp.app.prefs.edit().putString("pkg." + c.id, c.pkg).apply();
                 }
                 if (error != null) toast(error);
                 render();
