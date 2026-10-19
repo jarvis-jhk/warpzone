@@ -18,7 +18,8 @@
 //! The D-pad never reaches the tab bar or the bars at the bottom: the app
 //! moves the focus itself (`nav.rs`) among the controls of the page or the
 //! open dialog. The hint bar at the bottom shows the buttons as glyphs
-//! whenever a controller is connected.
+//! whenever a controller is connected. Any button hides the mouse pointer and
+//! its hover highlight until the mouse moves again.
 
 use eframe::egui::{self, Event, Key, Modifiers, RawInput};
 use gilrs::{Axis, Button, EventType, Gilrs};
@@ -73,6 +74,9 @@ pub struct Pad {
     /// every 400 ms.
     pub script: Vec<Dir>,
     script_at: Option<Instant>,
+    /// The controller was used after the mouse: the pointer is gone (no
+    /// hover highlights) and hidden until the mouse or touch moves again.
+    pub pointer_hidden: bool,
 }
 
 const REPEAT_DELAY: Duration = Duration::from_millis(380);
@@ -195,6 +199,7 @@ impl Pad {
             focus_next: false,
             script: Vec::new(),
             script_at: None,
+            pointer_hidden: false,
         }
     }
 
@@ -226,6 +231,10 @@ impl Pad {
         self.pressed.clear();
         self.moves.clear();
         self.wants_focus = std::mem::take(&mut self.focus_next);
+        if raw.events.iter().any(|e| matches!(e, Event::PointerMoved(_) | Event::PointerButton { .. } | Event::MouseWheel { .. } | Event::Touch { .. })) {
+            self.pointer_hidden = false;
+        }
+        let used = self.last_used;
         if !self.script.is_empty() && self.script_at.is_none_or(|t| t.elapsed() > Duration::from_millis(400)) {
             self.script_at = Some(Instant::now());
             let d = self.script.remove(0);
@@ -251,6 +260,12 @@ impl Pad {
             }
         }
         self.rx = Some(rx);
+        // A button was pressed: egui forgets where the pointer is, so what
+        // it rests on no longer lights up next to the focus.
+        if self.last_used != used && !self.pointer_hidden {
+            self.pointer_hidden = true;
+            raw.events.push(Event::PointerGone);
+        }
     }
 }
 
@@ -384,6 +399,7 @@ mod tests {
             focus_next: false,
             script: Vec::new(),
             script_at: None,
+            pointer_hidden: false,
         };
         // Arrow keys would let egui move the focus anywhere, even into the
         // tab bar; the app moves it itself, within the page.
@@ -392,10 +408,15 @@ mod tests {
         tx.send(Msg::Key(Key::Enter)).unwrap();
         let mut raw = RawInput { focused: true, ..Default::default() };
         p.feed(&mut raw);
-        assert!(raw.events.iter().all(|e| matches!(e, Event::Key { key: Key::Enter, .. })));
+        assert!(raw.events.iter().all(|e| matches!(e, Event::Key { key: Key::Enter, .. } | Event::PointerGone)));
         assert_eq!(p.take_moves(), vec![Dir::Down]);
         assert!(p.take_moves().is_empty());
         assert!(p.take(Btn::X) && !p.take(Btn::X));
+        // The pad was used: the pointer goes, until the mouse moves.
+        assert!(p.pointer_hidden && raw.events.iter().any(|e| matches!(e, Event::PointerGone)));
+        let mut raw = RawInput { focused: true, events: vec![Event::PointerMoved(egui::pos2(1.0, 1.0))], ..Default::default() };
+        p.feed(&mut raw);
+        assert!(!p.pointer_hidden);
         // A game window has the focus: the pad is not for us.
         tx.send(Msg::Dir(Dir::Up)).unwrap();
         p.feed(&mut RawInput { focused: false, ..Default::default() });

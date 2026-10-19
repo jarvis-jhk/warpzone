@@ -142,6 +142,14 @@ impl GameState {
         self.release.as_ref().is_some_and(|r| install::asset_for(r, install::platform()).is_some())
     }
 
+    /// Can this game run here at all? Installed or installing, or its
+    /// descriptor names a download for this platform (the Deck also takes
+    /// the Linux build, Linux and the Deck an AppImage). A Windows-only game
+    /// is not shown in the Linux launcher, an Android-only one nowhere.
+    pub fn runs_here(&self) -> bool {
+        self.installed.is_some() || self.busy.is_some() || self.desc.install.as_ref().is_some_and(|i| runs_on(&i.assets, install::platform()))
+    }
+
     pub fn update_available(&self) -> bool {
         match (&self.installed, &self.release) {
             (Some(i), Some(r)) => i.version != r.version && install::asset_for(r, install::platform()).is_some(),
@@ -152,6 +160,16 @@ impl GameState {
     pub fn data_ready(&self) -> bool {
         self.data.as_ref().is_none_or(|d| d.iter().all(|s| s.ready() || s.req.optional))
     }
+}
+
+/// Does a descriptor's `install.assets` have a build for `platform`?
+fn runs_on(assets: &std::collections::BTreeMap<String, String>, platform: &str) -> bool {
+    let ok: &[&str] = match platform {
+        "deck" => &["deck", "linux", "appimage"],
+        "linux" => &["linux", "appimage"],
+        p => &[p],
+    };
+    ok.iter().any(|p| assets.contains_key(*p))
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -1715,7 +1733,10 @@ impl App {
 
     /// RT on the controller: quit Warpzone (asks first).
     fn quit_modal(&mut self, ctx: &egui::Context) {
-        let mut answer = None;
+        // A quits and B stays, whichever button the D-pad is on (Escape
+        // closes the dialog, see `should_close` below).
+        let mut answer = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)).then_some(true);
+        let pad = self.pad.active();
         let resp = egui::Modal::new(egui::Id::unique("quit")).show(ctx, |ui| {
             ui.set_width(420.0);
             ui.label(RichText::new("Quit Warpzone?").font(display(22.0)));
@@ -1724,15 +1745,22 @@ impl App {
             }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
+                if pad {
+                    crate::pad::glyph(ui, Glyph::A, 22.0);
+                }
                 if ui.add(egui::Button::new(RichText::new("Quit").size(16.0))).clicked() {
                     answer = Some(true);
+                }
+                ui.add_space(10.0);
+                if pad {
+                    crate::pad::glyph(ui, Glyph::B, 22.0);
                 }
                 if ui.add(egui::Button::new(RichText::new("Stay").size(16.0))).clicked() {
                     answer = Some(false);
                 }
             });
         });
-        if resp.should_close() {
+        if resp.should_close() && answer.is_none() {
             answer = Some(false);
         }
         match answer {
@@ -1836,9 +1864,14 @@ impl App {
 
     /// Games the library shows: every visible game, or with games installed
     /// (and "All games" off) only those.
+    /// In the library: not hidden (by the descriptor or the player) and
+    /// able to run on this platform.
+    fn listed(&self, g: &GameState) -> bool {
+        !g.desc.hidden && (self.show_hidden || !self.settings.hidden_games.contains(&g.desc.id)) && g.runs_here()
+    }
+
     fn library_ids(&self) -> (Vec<String>, usize) {
-        let visible: Vec<&GameState> =
-            self.games.iter().filter(|g| !g.desc.hidden && (self.show_hidden || !self.settings.hidden_games.contains(&g.desc.id))).collect();
+        let visible: Vec<&GameState> = self.games.iter().filter(|g| self.listed(g)).collect();
         let installed = visible.iter().filter(|g| g.installed.is_some()).count();
         let only_installed = installed > 0 && !self.settings.show_all_games;
         let ids = visible.iter().filter(|g| !only_installed || g.installed.is_some() || g.busy.is_some()).map(|g| g.desc.id.clone()).collect();
@@ -1847,7 +1880,7 @@ impl App {
 
     fn library(&mut self, ui: &mut egui::Ui) {
         let (ids, installed) = self.library_ids();
-        let total = self.games.iter().filter(|g| !g.desc.hidden && (self.show_hidden || !self.settings.hidden_games.contains(&g.desc.id))).count();
+        let total = self.games.iter().filter(|g| self.listed(g)).count();
         let pad = self.pad.active();
         let mut toggle = installed > 0 && self.pad.take(Btn::X);
         ui.horizontal(|ui| {
@@ -1865,7 +1898,7 @@ impl App {
                     crate::pad::glyph(ui, Glyph::X, 20.0);
                 }
             }
-            let hidden = self.games.iter().filter(|g| self.settings.hidden_games.contains(&g.desc.id)).count();
+            let hidden = self.games.iter().filter(|g| g.runs_here() && self.settings.hidden_games.contains(&g.desc.id)).count();
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if hidden > 0 {
                     ui.checkbox(&mut self.show_hidden, format!("Show hidden games ({hidden})"));
@@ -1906,7 +1939,7 @@ impl App {
         } else {
             None
         };
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        crate::nav::scroll(ui, egui::ScrollArea::vertical().auto_shrink([false, false]), |ui| {
             ui.add_space(2.0);
             let mut cells: Vec<Option<&String>> = ids.iter().map(Some).collect();
             if more > 0 {
@@ -2170,7 +2203,7 @@ impl App {
         if self.pad.take(Btn::Start) {
             act = Some("art".into());
         }
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        crate::nav::scroll(ui, egui::ScrollArea::vertical().auto_shrink([false, false]), |ui| {
             let g = &self.games[gi];
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -2548,7 +2581,7 @@ impl App {
             }
         });
         let mut join: Option<(String, String)> = None;
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        crate::nav::scroll(ui, egui::ScrollArea::vertical().auto_shrink([false, false]), |ui| {
             if self.rooms.is_empty() {
                 ui.label(RichText::new("No public rooms right now. Host one from a game's page, or join a private game with its code.").color(MUTED));
             }
@@ -2715,7 +2748,7 @@ impl App {
         let mut act: Option<(String, bool)> = None;
         let mut detail: Option<String> = None;
         ui.columns(2, |cols| {
-            egui::ScrollArea::vertical().id_salt("modlist").show(&mut cols[0], |ui| {
+            crate::nav::scroll(&mut cols[0], egui::ScrollArea::vertical().id_salt("modlist"), |ui| {
                 if self.mods.is_empty() {
                     ui.label(RichText::new("No published mods for this game yet.").color(MUTED));
                 }
@@ -2857,7 +2890,7 @@ impl App {
                 }
             });
         });
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        crate::nav::scroll(ui, egui::ScrollArea::vertical().auto_shrink([false, false]), |ui| {
             let Some(q) = &self.moderation else {
                 ui.label("Loading…");
                 return;
@@ -2939,7 +2972,7 @@ impl App {
     }
 
     fn settings_tab(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        crate::nav::scroll(ui, egui::ScrollArea::vertical().auto_shrink([false, false]), |ui| {
             ui.heading("Settings");
             card(ui, |ui| {
                 ui.label(RichText::new("Running in the background").font(display(18.0)));
@@ -2958,7 +2991,9 @@ impl App {
                 }
                 ui.horizontal(|ui| {
                     ui.label("Interface size");
-                    for (v, l) in [(None, "Auto"), (Some(0.75), "75 %"), (Some(1.0), "100 %"), (Some(1.25), "125 %"), (Some(1.5), "150 %"), (Some(2.0), "200 %")] {
+                    for (v, l) in
+                        [(None, "Auto"), (Some(0.75), "75 %"), (Some(1.0), "100 %"), (Some(1.25), "125 %"), (Some(1.5), "150 %"), (Some(2.0), "200 %")]
+                    {
                         if ui.selectable_label(self.settings.ui_scale == v, l).clicked() && self.settings.ui_scale != v {
                             self.settings.ui_scale = v;
                             self.settings.save();
@@ -2976,7 +3011,10 @@ impl App {
             ui.add_space(8.0);
             card(ui, |ui| {
                 ui.label(RichText::new("Your identity").font(display(18.0)));
-                ui.label(RichText::new("No password and no e-mail: this device's key is your login. Use a link code to play as the same player on another device.").color(MUTED));
+                ui.label(
+                    RichText::new("No password and no e-mail: this device's key is your login. Use a link code to play as the same player on another device.")
+                        .color(MUTED),
+                );
                 match self.account.clone() {
                     Some(a) => {
                         ui.label(format!("Playing as {}", a.username));
@@ -3082,7 +3120,14 @@ impl App {
                     self.settings.hidden_games.retain(|x| *x != h);
                     self.settings.save();
                 }
-                ui.label(RichText::new(format!("Extra folders searched for game files: {}", if self.settings.data_folders.is_empty() { "none".into() } else { self.settings.data_folders.join(", ") })).color(MUTED).size(13.0));
+                ui.label(
+                    RichText::new(format!(
+                        "Extra folders searched for game files: {}",
+                        if self.settings.data_folders.is_empty() { "none".into() } else { self.settings.data_folders.join(", ") }
+                    ))
+                    .color(MUTED)
+                    .size(13.0),
+                );
                 ui.add_space(6.0);
                 ui.label(RichText::new("Tile artwork comes from SteamGridDB (right-click a game, or Menu on a controller, to pick another or your own picture). It works without an account; with your own API key (steamgriddb.com → Preferences → API) the official API is used.").color(MUTED).size(13.0));
                 ui.horizontal(|ui| {
@@ -3109,7 +3154,13 @@ impl App {
                     }
                 });
                 if steam::steam_installed() {
-                    ui.label(RichText::new("Adding to Steam closes Steam first if it is running (Steam would undo the change), then adds the shortcut with full artwork.").color(MUTED).size(12.5));
+                    ui.label(
+                        RichText::new(
+                            "Adding to Steam closes Steam first if it is running (Steam would undo the change), then adds the shortcut with full artwork.",
+                        )
+                        .color(MUTED)
+                        .size(12.5),
+                    );
                 }
             });
             ui.add_space(8.0);
@@ -3194,7 +3245,7 @@ impl App {
                 });
             }
             ui.add_space(4.0);
-            egui::ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, |ui| {
+            crate::nav::scroll(ui, egui::ScrollArea::vertical().max_height(height).auto_shrink([false, true]), |ui| {
                 let (tw, th) = (120.0, 180.0);
                 ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(10.0, 10.0);
@@ -3382,6 +3433,7 @@ impl App {
         self.page = page;
         self.first_run = modal;
         self.name_dialog = name == "player-name";
+        self.confirm_quit = name == "quit";
         // Controller navigation, as a player would do it.
         let idx = self.shots.as_ref().unwrap().idx;
         if self.shots.as_ref().unwrap().scripted != Some(idx) {
@@ -3391,6 +3443,7 @@ impl App {
                 "library-pad" => vec![Right, Right, Right],
                 "art-picker" => vec![Right, Right, Down],
                 "rooms-pad" => vec![Down, Down, Down, Right],
+                "library-down" => vec![Down, Down, Down],
                 _ => Vec::new(),
             };
             if !self.pad.script.is_empty() {
@@ -3509,10 +3562,10 @@ impl eframe::App for App {
         let focused = ctx.memory(|m| m.focused());
         if focused != self.last_focus {
             self.last_focus = focused;
-            if let Some(r) = focused.and_then(|id| ctx.read_response(id))
+            if let Some(id) = focused
                 && self.pad.last_used.is_some_and(|t| t.elapsed() < Duration::from_secs(2))
             {
-                r.scroll_to_me(None);
+                crate::nav::want_reveal(&ctx, id);
             }
         }
         egui::Panel::top("top").frame(Frame::new().fill(Color32::from_rgb(14, 14, 25)).inner_margin(Margin::symmetric(14, 10))).show(ui, |ui| self.top_bar(ui));
@@ -3578,6 +3631,7 @@ impl eframe::App for App {
                 in_dialog = true;
             }
         }
+        crate::nav::forget_reveal(&ctx);
         self.navigate(&ctx, &scope, in_dialog);
         // A ring around what the D-pad focused: text fields and check boxes
         // show their focus too faintly to follow from the couch.
@@ -3588,6 +3642,10 @@ impl eframe::App for App {
             let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::unique("pad-focus")));
             p.rect_stroke(t.rect.expand(3.0), CornerRadius::same(10), Stroke::new(2.0, ACCENT2), egui::StrokeKind::Outside);
         }
+        // Driving with the controller: no mouse pointer over it all.
+        if self.pad.pointer_hidden {
+            ctx.set_cursor_icon(egui::CursorIcon::None);
+        }
     }
 
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
@@ -3596,5 +3654,22 @@ impl eframe::App for App {
 
     fn clear_color(&self, _v: &egui::Visuals) -> [f32; 4] {
         [11.0 / 255.0, 11.0 / 255.0, 20.0 / 255.0, 1.0]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::runs_on;
+
+    #[test]
+    fn only_games_with_a_build_for_here() {
+        let a = |ks: &[&str]| ks.iter().map(|k| (k.to_string(), "x".to_string())).collect();
+        // OpenTS: Windows only.
+        assert!(!runs_on(&a(&["windows"]), "linux") && !runs_on(&a(&["windows"]), "deck") && runs_on(&a(&["windows"]), "windows"));
+        // The Deck takes the Linux build; Linux and the Deck an AppImage.
+        assert!(runs_on(&a(&["linux"]), "deck") && runs_on(&a(&["appimage"]), "linux") && runs_on(&a(&["appimage"]), "deck"));
+        assert!(!runs_on(&a(&["deck"]), "linux"));
+        // Android-only: on no desktop.
+        assert!(!runs_on(&a(&["android"]), "linux") && !runs_on(&a(&["android"]), "windows"));
     }
 }

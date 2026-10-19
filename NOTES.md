@@ -1,5 +1,19 @@
 # Notes
 
+- 2026-10-19 (request t_mvfei07s6j5ju, Jan's Steam Deck test): RELEASED
+  v0.1.7, launcher-only (vtt stays on 0.1.6). D-pad focus never scrolled:
+  egui saves a scroll request made before a ScrollArea begins and puts it
+  back untouched, so the old `scroll_to_me` at the start of the frame did
+  nothing. Now nav::want_reveal at frame start, every page's ScrollArea goes
+  through nav::scroll, which calls nav::reveal at the end of its contents
+  (scrolls if the focused widget is among them). Quit dialog: A (Enter
+  consumed) quits, B/Escape stays, glyphs beside the buttons. Library lists
+  only `runs_here` games (installed/busy, or install.assets has the platform;
+  deck takes linux/appimage, linux appimage) — no install section = hidden.
+  Pad press -> Event::PointerGone + CursorIcon::None until a pointer/touch
+  event (pad.pointer_hidden). New shot steps library-down, quit; verified on
+  Xvfb :217 Deck-sized (OpenTS gone, third row scrolled up, no hover).
+
 - 2026-10-19 (request t_mvf4iqge2m9tv, Jan: "add an android launcher to
   warpzone releases ... feels like a touch version of the steam deck version
   and only shows games that work in Android (currently only baba)"):

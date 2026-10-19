@@ -161,6 +161,8 @@ fn main() {
                         ("library".into(), app::Tab::Library, None, false),
                         // The same, moved through with a controller's D-pad.
                         ("library-pad".into(), app::Tab::Library, None, false),
+                        // Down to the row below the screen: it scrolls into view.
+                        ("library-down".into(), app::Tab::Library, None, false),
                         ("game-page".into(), app::Tab::Library, first.or(Some("funny-furries".into())), false),
                         ("rooms".into(), app::Tab::Rooms, None, false),
                         // Rooms moved through with the D-pad (it stays on the page).
@@ -174,6 +176,8 @@ fn main() {
                         ("player-name".into(), app::Tab::Library, None, false),
                         // Opens "Change artwork" for the first game with SteamGridDB art.
                         ("art-picker".into(), app::Tab::Library, None, false),
+                        // RT on the controller.
+                        ("quit".into(), app::Tab::Library, None, false),
                     ],
                     idx: 0,
                     at: Instant::now(),

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.7
+
+Launcher, from Steam Deck testing:
+
+- The D-pad's focus scrolls into view: going down into a row of the library
+  (or any page) below the screen scrolls it up. It never did — egui only
+  scrolls for a request made inside the scroll area.
+- The quit dialog shows its buttons: (A) Quit, (B) Stay. A quits and B stays
+  whichever button the D-pad is on.
+- Games that cannot run here are not shown: a Windows-only game is missing
+  from the Linux and Steam Deck launcher, an Android-only one from every
+  desktop (the Deck also takes Linux builds and AppImages). Installed games
+  always show.
+- Any controller button hides the mouse pointer and its hover highlight (and
+  tooltip) until the mouse or touch moves again.
+
 ## 0.1.6
 
 - **Warpzone for Android**: a light launcher for phones and tablets

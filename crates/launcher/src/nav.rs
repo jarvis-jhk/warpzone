@@ -37,6 +37,45 @@ pub fn since(ctx: &egui::Context, before: &HashSet<Id>) -> Vec<Target> {
     })
 }
 
+fn reveal_key() -> Id {
+    Id::unique("nav-reveal")
+}
+
+/// Ask the scroll area holding `id` to bring it into view this frame (the
+/// D-pad just focused it). [`reveal`] in each scroll area does it: egui only
+/// scrolls for a request made while that area's contents are drawn, one
+/// made before is put back untouched when the area ends.
+pub fn want_reveal(ctx: &egui::Context, id: Id) {
+    ctx.data_mut(|d| d.insert_temp(reveal_key(), id));
+}
+
+/// Forget an unanswered [`want_reveal`] (end of the frame: nothing that
+/// scrolls holds the control).
+pub fn forget_reveal(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove::<Id>(reveal_key()));
+}
+
+/// Last thing in a scroll area's contents: if the control waiting to be
+/// revealed is among them, scroll just far enough to show it whole.
+pub fn reveal(ui: &egui::Ui) {
+    let ctx = ui.ctx();
+    let Some(id) = ctx.data(|d| d.get_temp::<Id>(reveal_key())) else { return };
+    let Some(rect) = ctx.viewport(|v| v.this_pass.widgets.get(id).map(|w| w.rect)) else { return };
+    if ui.min_rect().expand(1.0).contains_rect(rect) {
+        ui.scroll_to_rect(rect.expand(4.0), None);
+        forget_reveal(ctx);
+    }
+}
+
+/// `area.show(ui, add)`, then [`reveal`] in it.
+pub fn scroll<R>(ui: &mut egui::Ui, area: egui::ScrollArea, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::scroll_area::ScrollAreaOutput<R> {
+    area.show(ui, |ui| {
+        let r = add(ui);
+        reveal(ui);
+        r
+    })
+}
+
 /// Only the top-most layer counts: with a drop-down open, only its entries.
 fn top_layer(cands: &[Target], focused: Option<Id>) -> Vec<Target> {
     let Some(top) = cands.iter().map(|t| t.layer.order).max_by_key(|o| order_rank(*o)) else { return Vec::new() };
