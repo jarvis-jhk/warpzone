@@ -35,8 +35,8 @@ port recorded in `<data>/launcher.port`) and exits, so invite links and
 
 ## The launcher updating itself
 
-At start (with *Update games automatically* on) the launcher asks the server
-whether a newer launcher exists. **As an AppImage** it downloads the new
+At start and every 30 minutes after (whatever *Update games automatically*
+says) the launcher asks the server whether a newer launcher exists. **As an AppImage** it downloads the new
 AppImage next to the running one, verifies it against GitHub's SHA-256 digest
 and renames it over the old file; the running copy stays mounted until it
 exits, so the new version starts next time. The AppImage also carries
@@ -44,7 +44,10 @@ update information (`gh-releases-zsync`), so AppImageUpdate or AppImageLauncher
 can update it too. **Unpacked** (`.tar.gz`, `.zip`) it replaces its own
 executable the same way. Shortcuts, autostart entries and the `warpzone://`
 handler always point at the AppImage file (`$APPIMAGE`), never at its
-temporary mount. `WARPZONE_NO_SELF_UPDATE=1` turns self-updates off.
+temporary mount. A launcher running in the background (window closed)
+restarts itself into the new version as soon as no game, room or ranked
+queue is active; with its window open it says the update is installed and
+starts it next time. `WARPZONE_NO_SELF_UPDATE=1` turns self-updates off.
 
 ## Installing and updating
 

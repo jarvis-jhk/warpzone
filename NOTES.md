@@ -1,5 +1,18 @@
 # Notes
 
+- 2026-10-19 (request t_mvf2g738gp1g8, Jan: "assuming the launcher updates
+  itself automatically everywhere; if not, make it"): it did not quite —
+  self-update ran only at start and only with the games' auto_update on, so
+  a background launcher never updated. RELEASED v0.1.5: check at start and
+  on the 30-min tick regardless of auto_update (env WARPZONE_NO_SELF_UPDATE
+  still opts out); hidden + idle (no game running/busy, lobby, queue) ->
+  `system::restart_in_background` removes launcher.port (else the new
+  process forwards its args to the old one and exits), spawns the exe path
+  recorded at start (`$APPIMAGE` or current_exe — after an unpacked update
+  /proc/self/exe points at the deleted .old) with --background, exits.
+  Restart path not run end to end here (no second release to update to
+  in the container); <= 0.1.4 launchers update at their next start.
+
 - 2026-10-19 (request t_mvf1o4h7dmpfn, Jan's first test of 0.1.3 on a real
   Deck; t_mvf276umflxih federation went into ROADMAP.md only): launcher
   controller rework, RELEASED as v0.1.4 (launcher-only; server unchanged, vtt

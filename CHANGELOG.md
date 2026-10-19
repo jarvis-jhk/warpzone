@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5
+
+- Launcher: updates itself everywhere, always. It checks at start and every
+  30 minutes (before: only at start, and only with *Update games
+  automatically* on), and a launcher running in the background restarts
+  into the new version by itself once no game, room or queue is active.
+  Launchers up to 0.1.4 still pick the update up at their next start.
+
 ## 0.1.4
 
 - Launcher, controller (from the first test on a real Steam Deck): the D-pad

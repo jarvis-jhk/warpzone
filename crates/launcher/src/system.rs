@@ -19,6 +19,18 @@ pub fn forward_to_running(args: &[String]) -> bool {
     s.write_all(format!("WARPZONE {line}\n").as_bytes()).is_ok()
 }
 
+/// Start the (updated) launcher anew in the background and end this one.
+/// The port file goes first, so the new one does not hand its arguments to
+/// this one and exit.
+pub fn restart_in_background(exe: &Option<PathBuf>) {
+    let Some(exe) = exe else { return };
+    let _ = std::fs::remove_file(port_file());
+    if std::process::Command::new(exe).arg("--background").spawn().is_ok() {
+        log::info!("restarting into the updated launcher");
+        std::process::exit(0);
+    }
+}
+
 /// Listen for later starts; each sends its arguments to `tx`.
 pub fn listen(tx: Sender<Vec<String>>, wake: impl Fn() + Send + 'static) {
     let Ok(l) = TcpListener::bind("127.0.0.1:0") else { return };

@@ -257,6 +257,8 @@ pub struct App {
     pub exit_after_launch: bool,
     pub ctx: Option<egui::Context>,
     pub self_updated: Option<String>,
+    /// The launcher's own file, as it was at start (an update replaces it).
+    pub exe: Option<std::path::PathBuf>,
     pub confirm_delete: bool,
     /// Feedback box: text, picked game (`None`: the last one started) and
     /// whether it is an idea rather than a problem.
@@ -388,6 +390,7 @@ impl App {
             confirm_quit: false,
             quit: false,
             refresh: false,
+            exe: warpzone_core::install::launcher_path().ok(),
         };
         app.login();
         app.refresh_catalog();
@@ -395,9 +398,11 @@ impl App {
         app
     }
 
-    /// Keep the launcher itself current (verified against GitHub like games).
+    /// Keep the launcher itself current (verified against GitHub like games):
+    /// at start and every 30 minutes, whatever the games' auto-update setting
+    /// says; only `WARPZONE_NO_SELF_UPDATE` turns it off.
     pub fn check_self_update(&mut self) {
-        if !self.settings.auto_update || std::env::var_os("WARPZONE_NO_SELF_UPDATE").is_some() {
+        if self.self_updated.is_some() || std::env::var_os("WARPZONE_NO_SELF_UPDATE").is_some() {
             return;
         }
         let api = self.api.clone();
@@ -3437,6 +3442,20 @@ impl eframe::App for App {
         if self.last_bg.elapsed() > Duration::from_secs(1800) {
             self.last_bg = Instant::now();
             self.refresh_catalog();
+            self.check_self_update();
+        }
+        // Running in the background with a new version installed: restart
+        // into it once nothing is going on (no window, game, room or queue).
+        if self.self_updated.is_some()
+            && self.hidden
+            && self.lobby.is_none()
+            && self.queue.is_none()
+            && self.shots.is_none()
+            && !self.games.iter().any(|g| g.running || g.busy.is_some())
+        {
+            system::restart_in_background(&self.exe);
+            // Still here: it could not start; do not try again every frame.
+            self.exe = None;
         }
         if self.hidden || self.queue.is_some() || self.games.iter().any(|g| g.busy.is_some()) || self.lobby.is_some() {
             ctx.request_repaint_after(Duration::from_millis(if self.hidden { 30_000 } else { 100 }));
