@@ -3,9 +3,11 @@
 use crate::art;
 use crate::jobs::{Apply, Jobs};
 use crate::lobby::{self, Lobby};
-use crate::settings::Settings;
+use crate::pad::{Btn, Glyph};
+use crate::settings::{ArtChoice, Settings};
 use crate::steam;
 use crate::system;
+use crate::tileart;
 use eframe::egui::{self, Color32, CornerRadius, Frame, Margin, RichText, Stroke, TextureHandle, TextureOptions, Vec2};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -112,14 +114,28 @@ pub struct GameState {
     pub busy: Option<String>,
     pub progress: Option<(u64, u64)>,
     pub error: Option<String>,
-    pub tile: Option<TextureHandle>,
+    /// The library tile (portrait art) and where it came from.
+    pub portrait: Option<TextureHandle>,
+    pub art_source: Option<tileart::Source>,
     pub running: bool,
 }
 
 impl GameState {
     fn new(desc: GameDescriptor) -> GameState {
         let installed = install::installed(&desc.id);
-        GameState { desc, release: None, installed, changelog: Vec::new(), data: None, busy: None, progress: None, error: None, tile: None, running: false }
+        GameState {
+            desc,
+            release: None,
+            installed,
+            changelog: Vec::new(),
+            data: None,
+            busy: None,
+            progress: None,
+            error: None,
+            portrait: None,
+            art_source: None,
+            running: false,
+        }
     }
 
     pub fn platform_asset(&self) -> bool {
@@ -166,12 +182,32 @@ pub struct Queue {
     pub status: String,
 }
 
+/// "Change artwork": SteamGridDB grids of a game (or of another game the
+/// player searched for), a local file, or the generated art.
+pub struct Picker {
+    pub game: String,
+    /// The SteamGridDB game whose grids are shown, and its name.
+    pub sgdb: Option<(u64, String)>,
+    pub query: String,
+    pub hits: Vec<warpzone_core::griddb::GameHit>,
+    pub grids: Vec<warpzone_core::griddb::Grid>,
+    pub page: u32,
+    pub more: bool,
+    pub thumbs: std::collections::HashMap<u64, TextureHandle>,
+    pub loading: bool,
+    pub error: Option<String>,
+    /// The controller's focus was put on the first picture.
+    pub focused: bool,
+}
+
 pub struct ShotPlan {
     pub dir: PathBuf,
     pub steps: Vec<(String, Tab, Option<String>, bool)>,
     pub idx: usize,
     pub at: Instant,
     pub waiting: bool,
+    /// The step whose controller script was started.
+    pub scripted: Option<usize>,
 }
 
 pub struct App {
@@ -224,6 +260,12 @@ pub struct App {
     pub feedback_text: String,
     pub feedback_game: Option<String>,
     pub feedback_idea: bool,
+    /// The artwork picker, when open.
+    pub picker: Option<Picker>,
+    /// The widget focused in the last frame (to scroll a newly focused one into view).
+    pub last_focus: Option<egui::Id>,
+    /// The library tile to focus when coming back from a game page.
+    pub focus_tile: Option<String>,
 }
 
 fn style(ctx: &egui::Context) {
@@ -310,7 +352,7 @@ impl App {
             host_entry: Entry::Open,
             host_visibility: Visibility::Public,
             data_folder_input: String::new(),
-            pad: crate::pad::Pad::new(),
+            pad: crate::pad::Pad::start(cc.egui_ctx.clone()),
             shots: None,
             args_rx,
             last_bg: Instant::now(),
@@ -323,6 +365,9 @@ impl App {
             feedback_text: String::new(),
             feedback_game: None,
             feedback_idea: false,
+            picker: None,
+            last_focus: None,
+            focus_tile: None,
         };
         app.login();
         app.refresh_catalog();
@@ -412,7 +457,7 @@ impl App {
                     app.online = Some(true);
                     let ids: Vec<String> = app.games.iter().map(|g| g.desc.id.clone()).collect();
                     for id in ids {
-                        app.render_tile(&id);
+                        app.load_portrait(&id, false);
                         app.scan_data(&id);
                     }
                     app.background_updates();
@@ -425,21 +470,164 @@ impl App {
         });
     }
 
-    fn render_tile(&mut self, id: &str) {
+    /// Load a game's library tile: the player's choice, else SteamGridDB's
+    /// best portrait grid, else the generated art. `force`: reload after the
+    /// player changed it.
+    pub fn load_portrait(&mut self, id: &str, force: bool) {
         let Some(g) = self.games.iter().find(|g| g.desc.id == id) else { return };
-        if g.tile.is_some() {
+        if g.portrait.is_some() && !force {
             return;
         }
-        let (gid, name, accent, motif) =
-            (g.desc.id.clone(), g.desc.name.clone(), g.desc.accent.clone(), g.desc.motif.clone().unwrap_or_else(|| "waves".into()));
+        let desc = g.desc.clone();
+        let choice = self.settings.art.get(id).cloned();
+        let key = self.settings.griddb_key.clone();
         self.jobs.run(move || {
-            let (w, h, px) = art::render(&art::Spec { id: &gid, name: &name, accent: &accent, motif: &motif }, art::Kind::Tile);
-            let img = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &px);
+            let (img, src) = tileart::resolve(&desc, choice.as_ref(), &key);
             Box::new(move |app: &mut App| {
-                let ctx = app.jobs_ctx();
-                let tex = ctx.load_texture(format!("tile-{gid}"), img, TextureOptions::LINEAR);
-                if let Some(g) = app.game(&gid) {
-                    g.tile = Some(tex);
+                let tex = app.jobs_ctx().load_texture(format!("portrait-{}", desc.id), img, TextureOptions::LINEAR);
+                if let Some(g) = app.game(&desc.id) {
+                    g.portrait = Some(tex);
+                    g.art_source = Some(src);
+                }
+            })
+        });
+    }
+
+    /// The player picked new art for a game (`None`: back to the default).
+    pub fn set_art(&mut self, id: &str, choice: Option<ArtChoice>) {
+        match choice {
+            Some(c) => self.settings.art.insert(id.to_string(), c),
+            None => self.settings.art.remove(id),
+        };
+        self.settings.save();
+        self.load_portrait(id, true);
+    }
+
+    /// Open "Change artwork" for a game: its SteamGridDB grids, if it has an id.
+    pub fn open_picker(&mut self, id: &str) {
+        let Some(g) = self.games.iter().find(|g| g.desc.id == id) else { return };
+        let sgdb = match self.settings.art.get(id) {
+            Some(ArtChoice::Griddb { game, .. }) => Some(*game),
+            _ => g.desc.steamgriddb,
+        };
+        let name = g.desc.name.clone();
+        let query = g.desc.steam.as_ref().and_then(|s| s.name.clone()).unwrap_or(name.clone());
+        self.picker = Some(Picker {
+            game: id.to_string(),
+            sgdb: None,
+            query,
+            hits: Vec::new(),
+            grids: Vec::new(),
+            page: 0,
+            more: false,
+            thumbs: Default::default(),
+            loading: false,
+            error: None,
+            focused: false,
+        });
+        match sgdb {
+            Some(s) => self.picker_grids(s, name, 0),
+            None => self.picker_search(),
+        }
+    }
+
+    /// Search SteamGridDB for the picker's query.
+    pub fn picker_search(&mut self) {
+        let Some(p) = self.picker.as_mut() else { return };
+        p.loading = true;
+        p.error = None;
+        let (q, key) = (p.query.clone(), self.settings.griddb_key.clone());
+        self.jobs.run(move || {
+            let r = warpzone_core::griddb::GridDb::new(Some(&key)).search(&q);
+            Box::new(move |app: &mut App| {
+                let Some(p) = app.picker.as_mut() else { return };
+                p.loading = false;
+                match r {
+                    Ok(h) => {
+                        if h.is_empty() {
+                            p.error = Some(format!("Nothing on SteamGridDB for \"{q}\""));
+                        }
+                        p.hits = h;
+                    }
+                    Err(e) => p.error = Some(e.to_string()),
+                }
+            })
+        });
+    }
+
+    /// Show the grids of SteamGridDB game `sgdb` (`page` 0 replaces, later pages add).
+    pub fn picker_grids(&mut self, sgdb: u64, name: String, page: u32) {
+        let Some(p) = self.picker.as_mut() else { return };
+        p.loading = true;
+        p.error = None;
+        p.hits.clear();
+        p.sgdb = Some((sgdb, name));
+        if page == 0 {
+            p.grids.clear();
+            p.thumbs.clear();
+        }
+        let key = self.settings.griddb_key.clone();
+        let jobs = self.jobs.clone();
+        self.jobs.run(move || {
+            let db = warpzone_core::griddb::GridDb::new(Some(&key));
+            let r = db.grids(sgdb, page);
+            if let Ok(pg) = &r {
+                // Thumbnails one after another, each shown as it arrives.
+                let thumbs: Vec<(u64, String)> = pg.grids.iter().map(|g| (g.id, g.thumb.clone())).collect();
+                let jobs2 = jobs.clone();
+                std::thread::spawn(move || {
+                    let cache = warpzone_core::griddb::Cache::default();
+                    for (gid, url) in thumbs {
+                        let Some(img) = cache.image(&db, &url).ok().and_then(|b| image::load_from_memory(&b).ok()) else { continue };
+                        let img = img.thumbnail(240, 360).to_rgba8();
+                        let ci = egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw());
+                        jobs2.send(Box::new(move |app: &mut App| {
+                            let ctx = app.jobs_ctx();
+                            if let Some(p) = app.picker.as_mut().filter(|p| p.sgdb.as_ref().map(|s| s.0) == Some(sgdb)) {
+                                p.thumbs.insert(gid, ctx.load_texture(format!("thumb-{gid}"), ci, TextureOptions::LINEAR));
+                            }
+                        }));
+                    }
+                });
+            }
+            Box::new(move |app: &mut App| {
+                let Some(p) = app.picker.as_mut() else { return };
+                p.loading = false;
+                match r {
+                    Ok(pg) => {
+                        p.page = pg.page;
+                        p.more = pg.more();
+                        if pg.grids.is_empty() && page == 0 {
+                            p.error = Some("No portrait art for this game on SteamGridDB yet. Search for another one, or choose a file.".into());
+                        }
+                        p.grids.extend(pg.grids);
+                    }
+                    Err(e) => p.error = Some(e.to_string()),
+                }
+            })
+        });
+    }
+
+    /// "Choose a file…" in the picker.
+    pub fn picker_file(&mut self) {
+        let Some(p) = &self.picker else { return };
+        let gid = p.game.clone();
+        self.jobs.run(move || {
+            let r = system::pick_file("Picture for the library tile (portrait, 2:3)", &["png", "jpg", "jpeg", "webp"]);
+            Box::new(move |app: &mut App| match r {
+                Ok(Some(f)) => {
+                    let ok = std::fs::read(&f).ok().is_some_and(|b| tileart::decode(&b).is_some());
+                    if ok {
+                        app.picker = None;
+                        app.set_art(&gid, Some(ArtChoice::File { path: f.display().to_string() }));
+                    } else if let Some(p) = app.picker.as_mut() {
+                        p.error = Some(format!("{} is not a picture the launcher can read (PNG, JPEG or WebP)", f.display()));
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    log::warn!("file dialog: {e}");
+                    app.toast("No file dialog on this system (zenity or kdialog)");
                 }
             })
         });
@@ -898,56 +1086,28 @@ impl App {
     }
 
     pub fn add_to_steam(&mut self, game: Option<String>) {
-        let (name, id, accent, motif, launch, urls) = match &game {
+        let job = match &game {
             Some(gid) => {
                 let Some(g) = self.games.iter().find(|g| &g.desc.id == gid) else { return };
                 let s = g.desc.steam.clone().unwrap_or_default();
-                (
-                    s.name.clone().unwrap_or(g.desc.name.clone()),
-                    gid.clone(),
-                    g.desc.accent.clone(),
-                    g.desc.motif.clone().unwrap_or("waves".into()),
-                    format!("--play {gid}"),
-                    s,
-                )
+                SteamJob {
+                    api: self.api.clone(),
+                    name: s.name.clone().unwrap_or(g.desc.name.clone()),
+                    id: gid.clone(),
+                    accent: g.desc.accent.clone(),
+                    motif: g.desc.motif.clone().unwrap_or("waves".into()),
+                    launch: format!("--play {gid}"),
+                    urls: s,
+                    // The library tile's art (SteamGridDB or the player's) becomes the portrait capsule.
+                    tile: Some((g.desc.clone(), self.settings.art.get(gid).cloned())),
+                    key: self.settings.griddb_key.clone(),
+                }
             }
-            None => ("Warpzone".to_string(), "warpzone".to_string(), "#7c5cff".to_string(), "waves".to_string(), String::new(), Default::default()),
+            None => SteamJob::warpzone(self.api.clone()),
         };
-        let api = self.api.clone();
+        let name = job.name.clone();
         self.jobs.run(move || {
-            let r = (|| -> Result<usize, String> {
-                if steam::steam_running() {
-                    steam::close_steam();
-                }
-                let mut art_set = Vec::new();
-                for (suffix, kind, url) in [
-                    ("p", art::Kind::Capsule, urls.capsule.clone()),
-                    ("", art::Kind::Tile, urls.wide.clone()),
-                    ("_hero", art::Kind::Hero, urls.hero.clone()),
-                    ("_logo", art::Kind::Logo, urls.logo.clone()),
-                    ("_icon", art::Kind::Icon, urls.icon.clone()),
-                ] {
-                    let provided = url.and_then(|u| api.fetch(&u, 16 * 1024 * 1024).ok()).and_then(|b| image::load_from_memory(&b).ok());
-                    let png = match provided {
-                        Some(img) => {
-                            let mut out = std::io::Cursor::new(Vec::new());
-                            img.write_to(&mut out, image::ImageFormat::Png).map_err(|e| e.to_string())?;
-                            out.into_inner()
-                        }
-                        None => {
-                            let (w, h, px) = art::render(&art::Spec { id: &id, name: &name, accent: &accent, motif: &motif }, kind);
-                            let mut out = std::io::Cursor::new(Vec::new());
-                            image::write_buffer_with_format(&mut out, &px, w, h, image::ColorType::Rgba8, image::ImageFormat::Png)
-                                .map_err(|e| e.to_string())?;
-                            out.into_inner()
-                        }
-                    };
-                    art_set.push((suffix, png));
-                }
-                let exe = install::launcher_path().map_err(|e| e.to_string())?;
-                let dir = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-                steam::add(&steam::Shortcut { name: &name, exe: &exe, start_dir: &dir, launch_options: &launch, art: art_set }).map_err(|e| e.to_string())
-            })();
+            let r = job.run();
             Box::new(move |app: &mut App| match r {
                 Ok(n) => app.toast(format!("Added \"{name}\" to Steam ({n} user{}). Start Steam to see it.", if n == 1 { "" } else { "s" })),
                 Err(e) => app.toast(format!("Add to Steam: {e}")),
@@ -1088,6 +1248,79 @@ impl App {
     }
 }
 
+/// "Add to Steam": a shortcut with a complete artwork set.
+pub struct SteamJob {
+    pub api: Arc<Api>,
+    pub name: String,
+    pub id: String,
+    pub accent: String,
+    pub motif: String,
+    pub launch: String,
+    pub urls: warpzone_protocol::descriptor::SteamShortcut,
+    pub tile: Option<(GameDescriptor, Option<ArtChoice>)>,
+    pub key: String,
+}
+
+impl SteamJob {
+    /// The launcher itself (Settings, and `warpzone --add-to-steam`).
+    pub fn warpzone(api: Arc<Api>) -> SteamJob {
+        SteamJob {
+            api,
+            name: "Warpzone".into(),
+            id: "warpzone".into(),
+            accent: "#7c5cff".into(),
+            motif: "waves".into(),
+            launch: String::new(),
+            urls: Default::default(),
+            tile: None,
+            key: String::new(),
+        }
+    }
+
+    /// Close Steam if it runs, write the shortcut and its artwork for every
+    /// Steam user here. Blocks: run it in a job.
+    pub fn run(&self) -> Result<usize, String> {
+        if steam::steam_running() {
+            steam::close_steam();
+        }
+        let mut art_set = Vec::new();
+        for (suffix, kind, url) in [
+            ("p", art::Kind::Capsule, self.urls.capsule.clone()),
+            ("", art::Kind::Tile, self.urls.wide.clone()),
+            ("_hero", art::Kind::Hero, self.urls.hero.clone()),
+            ("_logo", art::Kind::Logo, self.urls.logo.clone()),
+            ("_icon", art::Kind::Icon, self.urls.icon.clone()),
+        ] {
+            let provided = url.and_then(|u| self.api.fetch(&u, 16 * 1024 * 1024).ok()).and_then(|b| image::load_from_memory(&b).ok());
+            if provided.is_none()
+                && suffix == "p"
+                && let Some((d, choice)) = &self.tile
+                && let Some(png) = tileart::capsule_png(d, choice.as_ref(), &self.key)
+            {
+                art_set.push((suffix, png));
+                continue;
+            }
+            let png = match provided {
+                Some(img) => {
+                    let mut out = std::io::Cursor::new(Vec::new());
+                    img.write_to(&mut out, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+                    out.into_inner()
+                }
+                None => {
+                    let (w, h, px) = art::render(&art::Spec { id: &self.id, name: &self.name, accent: &self.accent, motif: &self.motif }, kind);
+                    let mut out = std::io::Cursor::new(Vec::new());
+                    image::write_buffer_with_format(&mut out, &px, w, h, image::ColorType::Rgba8, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+                    out.into_inner()
+                }
+            };
+            art_set.push((suffix, png));
+        }
+        let exe = install::launcher_path().map_err(|e| e.to_string())?;
+        let dir = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        steam::add(&steam::Shortcut { name: &self.name, exe: &exe, start_dir: &dir, launch_options: &self.launch, art: art_set }).map_err(|e| e.to_string())
+    }
+}
+
 // ---------------------------------------------------------------- drawing
 
 /// How a game that crashed ended (`None` for a normal end, or when the
@@ -1117,6 +1350,13 @@ fn crash(status: &std::process::ExitStatus) -> Option<String> {
     }
 }
 
+/// Has this widget the keyboard (controller) focus? Unlike
+/// `Response::has_focus`, also while the window itself is not focused, so the
+/// highlight does not flicker away behind Steam's overlay.
+fn focused(r: &egui::Response) -> bool {
+    r.ctx.memory(|m| m.has_focus(r.id))
+}
+
 fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     Frame::new()
         .fill(PANEL)
@@ -1139,61 +1379,65 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
 }
 
 #[derive(Clone, Copy)]
-enum Glyph {
+enum Cap {
     Pad,
     Globe,
     Puzzle,
     Trophy,
 }
 
-/// One capability icon (drawn, not a font glyph) with an optional number.
-fn cap_icon(ui: &mut egui::Ui, glyph: Glyph, label: &str, active: bool, tip: &str) {
+/// Draw a capability icon (not a font glyph) centred on `c`; `hole` is the
+/// colour of the cut-outs (the background it sits on).
+fn draw_glyph(p: &egui::Painter, c: egui::Pos2, glyph: Cap, col: Color32, hole: Color32) {
+    let v = |x: f32, y: f32| c + Vec2::new(x, y);
+    let thin = Stroke::new(1.4, col);
+    match glyph {
+        Cap::Pad => {
+            p.rect_filled(egui::Rect::from_center_size(v(0.0, -0.5), Vec2::new(15.0, 8.0)), CornerRadius::same(4), col);
+            p.circle_filled(v(-5.0, 2.5), 3.2, col);
+            p.circle_filled(v(5.0, 2.5), 3.2, col);
+            p.rect_filled(egui::Rect::from_center_size(v(-4.0, -0.5), Vec2::new(4.0, 1.4)), CornerRadius::ZERO, hole);
+            p.rect_filled(egui::Rect::from_center_size(v(-4.0, -0.5), Vec2::new(1.4, 4.0)), CornerRadius::ZERO, hole);
+            p.circle_filled(v(3.3, -1.6), 1.0, hole);
+            p.circle_filled(v(5.2, 0.3), 1.0, hole);
+        }
+        Cap::Globe => {
+            p.circle_stroke(c, 7.0, thin);
+            let pts: Vec<egui::Pos2> = (0..=24)
+                .map(|i| {
+                    let a = i as f32 / 24.0 * std::f32::consts::TAU;
+                    v(3.2 * a.cos(), 7.0 * a.sin())
+                })
+                .collect();
+            p.add(egui::Shape::line(pts, thin));
+            p.line_segment([v(-7.0, 0.0), v(7.0, 0.0)], thin);
+            p.line_segment([v(-5.8, -3.6), v(5.8, -3.6)], Stroke::new(1.0, col));
+            p.line_segment([v(-5.8, 3.6), v(5.8, 3.6)], Stroke::new(1.0, col));
+        }
+        Cap::Puzzle => {
+            p.rect_filled(egui::Rect::from_center_size(v(-1.0, 1.5), Vec2::new(11.0, 11.0)), CornerRadius::same(2), col);
+            p.circle_filled(v(-1.0, -5.0), 2.7, col);
+            p.circle_filled(v(5.6, 1.5), 2.7, col);
+            p.circle_filled(v(-1.0, 8.0), 2.0, hole);
+        }
+        Cap::Trophy => {
+            p.rect_filled(egui::Rect::from_min_max(v(-4.5, -7.0), v(4.5, 0.5)), CornerRadius { nw: 1, ne: 1, sw: 5, se: 5 }, col);
+            p.circle_stroke(v(-5.0, -4.2), 2.3, thin);
+            p.circle_stroke(v(5.0, -4.2), 2.3, thin);
+            p.rect_filled(egui::Rect::from_min_max(v(-1.0, 0.0), v(1.0, 4.0)), CornerRadius::ZERO, col);
+            p.rect_filled(egui::Rect::from_min_max(v(-4.5, 4.0), v(4.5, 6.5)), CornerRadius::same(1), col);
+        }
+    }
+}
+
+/// One capability icon with an optional number.
+fn cap_icon(ui: &mut egui::Ui, glyph: Cap, label: &str, active: bool, tip: &str) {
     let col = if active { Color32::from_rgb(226, 226, 244) } else { Color32::from_rgb(92, 92, 120) };
     let resp = ui
         .horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 3.0;
             let (rect, _) = ui.allocate_exact_size(Vec2::new(18.0, 18.0), egui::Sense::hover());
-            let c = rect.center();
-            let p = ui.painter();
-            let v = |x: f32, y: f32| c + Vec2::new(x, y);
-            let thin = Stroke::new(1.4, col);
-            match glyph {
-                Glyph::Pad => {
-                    p.rect_filled(egui::Rect::from_center_size(v(0.0, -0.5), Vec2::new(15.0, 8.0)), CornerRadius::same(4), col);
-                    p.circle_filled(v(-5.0, 2.5), 3.2, col);
-                    p.circle_filled(v(5.0, 2.5), 3.2, col);
-                    p.rect_filled(egui::Rect::from_center_size(v(-4.0, -0.5), Vec2::new(4.0, 1.4)), CornerRadius::ZERO, PANEL);
-                    p.rect_filled(egui::Rect::from_center_size(v(-4.0, -0.5), Vec2::new(1.4, 4.0)), CornerRadius::ZERO, PANEL);
-                    p.circle_filled(v(3.3, -1.6), 1.0, PANEL);
-                    p.circle_filled(v(5.2, 0.3), 1.0, PANEL);
-                }
-                Glyph::Globe => {
-                    p.circle_stroke(c, 7.0, thin);
-                    let pts: Vec<egui::Pos2> = (0..=24)
-                        .map(|i| {
-                            let a = i as f32 / 24.0 * std::f32::consts::TAU;
-                            v(3.2 * a.cos(), 7.0 * a.sin())
-                        })
-                        .collect();
-                    p.add(egui::Shape::line(pts, thin));
-                    p.line_segment([v(-7.0, 0.0), v(7.0, 0.0)], thin);
-                    p.line_segment([v(-5.8, -3.6), v(5.8, -3.6)], Stroke::new(1.0, col));
-                    p.line_segment([v(-5.8, 3.6), v(5.8, 3.6)], Stroke::new(1.0, col));
-                }
-                Glyph::Puzzle => {
-                    p.rect_filled(egui::Rect::from_center_size(v(-1.0, 1.5), Vec2::new(11.0, 11.0)), CornerRadius::same(2), col);
-                    p.circle_filled(v(-1.0, -5.0), 2.7, col);
-                    p.circle_filled(v(5.6, 1.5), 2.7, col);
-                    p.circle_filled(v(-1.0, 8.0), 2.0, PANEL);
-                }
-                Glyph::Trophy => {
-                    p.rect_filled(egui::Rect::from_min_max(v(-4.5, -7.0), v(4.5, 0.5)), CornerRadius { nw: 1, ne: 1, sw: 5, se: 5 }, col);
-                    p.circle_stroke(v(-5.0, -4.2), 2.3, thin);
-                    p.circle_stroke(v(5.0, -4.2), 2.3, thin);
-                    p.rect_filled(egui::Rect::from_min_max(v(-1.0, 0.0), v(1.0, 4.0)), CornerRadius::ZERO, col);
-                    p.rect_filled(egui::Rect::from_min_max(v(-4.5, 4.0), v(4.5, 6.5)), CornerRadius::same(1), col);
-                }
-            }
+            draw_glyph(ui.painter(), rect.center(), glyph, col, PANEL);
             if !label.is_empty() {
                 ui.label(RichText::new(label).size(13.0).color(col).strong());
             }
@@ -1210,17 +1454,17 @@ fn capability_row(ui: &mut egui::Ui, d: &GameDescriptor) {
         ui.spacing_mut().item_spacing.x = 12.0;
         if let Some(n) = c.local_players {
             let tip = if n == 1 { "Single player on one screen".to_string() } else { format!("Up to {n} players on one screen, each with a controller") };
-            cap_icon(ui, Glyph::Pad, &n.to_string(), true, &tip);
+            cap_icon(ui, Cap::Pad, &n.to_string(), true, &tip);
         }
         if let Some(n) = c.online_players {
             let tip = if c.online_now { format!("Online with up to {n} players through Warpzone") } else { format!("Online play (up to {n}) is coming") };
-            cap_icon(ui, Glyph::Globe, &n.to_string(), c.online_now, &tip);
+            cap_icon(ui, Cap::Globe, &n.to_string(), c.online_now, &tip);
         }
         if c.mods {
-            cap_icon(ui, Glyph::Puzzle, "", c.mods_now, if c.mods_now { "Mods from the Warpzone archive" } else { "Mod support is coming" });
+            cap_icon(ui, Cap::Puzzle, "", c.mods_now, if c.mods_now { "Mods from the Warpzone archive" } else { "Mod support is coming" });
         }
         if c.ladder {
-            cap_icon(ui, Glyph::Trophy, "", c.ladder_now, if c.ladder_now { "Ranked ladder with seasons" } else { "Ranked play is coming" });
+            cap_icon(ui, Cap::Trophy, "", c.ladder_now, if c.ladder_now { "Ranked ladder with seasons" } else { "Ranked play is coming" });
         }
     });
 }
@@ -1231,35 +1475,72 @@ fn primary_button(ui: &mut egui::Ui, text: &str, big: bool) -> egui::Response {
     ui.add(b)
 }
 
-/// The compact primary button of a library tile.
-fn tile_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
-    let t = RichText::new(text).color(Color32::WHITE).strong().size(14.0);
-    ui.add(egui::Button::new(t).fill(ACCENT).corner_radius(CornerRadius::same(8)).min_size(Vec2::new(76.0, 28.0)))
-}
-
 impl App {
+    fn tabs(&self) -> Vec<(Tab, &'static str)> {
+        let mut tabs = vec![(Tab::Library, "Library"), (Tab::Rooms, "Rooms"), (Tab::Ladder, "Ladder"), (Tab::Mods, "Mods")];
+        if !self.roles.is_empty() {
+            tabs.push((Tab::Moderation, "Moderation"));
+        }
+        tabs.push((Tab::Settings, "Settings"));
+        tabs
+    }
+
+    pub fn switch_tab(&mut self, t: Tab) {
+        self.tab = t;
+        self.page = None;
+        match t {
+            Tab::Rooms => self.load_rooms(),
+            Tab::Moderation => self.load_moderation(),
+            _ => {}
+        }
+    }
+
+    /// LB/RB (and Ctrl+PageUp/PageDown): the tab before or after this one.
+    fn step_tab(&mut self, by: isize) {
+        let tabs = self.tabs();
+        let i = tabs.iter().position(|(t, _)| *t == self.tab).unwrap_or(0) as isize;
+        let n = tabs.len() as isize;
+        self.switch_tab(tabs[((i + by) % n + n) as usize % n as usize].0);
+        // The new page picks its own first control for the controller.
+        self.pad.focus_next = self.pad.active();
+    }
+
+    /// The controller hints at the bottom: what each button does here.
+    fn hint_bar(&mut self, ui: &mut egui::Ui) {
+        let mut items: Vec<(Glyph, &str)> = vec![(Glyph::Dpad, "Move")];
+        if self.picker.is_some() {
+            items.extend([(Glyph::A, "Choose"), (Glyph::B, "Close")]);
+        } else if self.tab == Tab::Library && self.page.is_none() {
+            items.extend([(Glyph::A, "Open"), (Glyph::Y, "Play / Install"), (Glyph::Menu, "Artwork")]);
+            if self.games.iter().any(|g| g.installed.is_some()) {
+                items.push((Glyph::X, if self.settings.show_all_games { "Installed only" } else { "All games" }));
+            }
+        } else {
+            items.extend([(Glyph::A, "Select"), (Glyph::B, "Back")]);
+        }
+        items.push((Glyph::Lb, ""));
+        items.push((Glyph::Rb, "Switch tab"));
+        crate::pad::hints(ui, &items);
+    }
+
     fn top_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.add_space(4.0);
             ui.label(RichText::new("WARPZONE").font(display(22.0)).color(Color32::WHITE));
             ui.add_space(18.0);
-            let mut tabs = vec![(Tab::Library, "Library"), (Tab::Rooms, "Rooms"), (Tab::Ladder, "Ladder"), (Tab::Mods, "Mods")];
-            if !self.roles.is_empty() {
-                tabs.push((Tab::Moderation, "Moderation"));
+            let pad = self.pad.active();
+            if pad {
+                crate::pad::glyph(ui, Glyph::Lb, 22.0);
             }
-            tabs.push((Tab::Settings, "Settings"));
-            for (t, label) in tabs {
+            for (t, label) in self.tabs() {
                 let sel = self.tab == t;
                 let txt = RichText::new(label).size(16.0).color(if sel { Color32::WHITE } else { MUTED });
                 if ui.add(egui::Button::selectable(sel, txt).corner_radius(CornerRadius::same(8))).clicked() {
-                    self.tab = t;
-                    self.page = None;
-                    match t {
-                        Tab::Rooms => self.load_rooms(),
-                        Tab::Moderation => self.load_moderation(),
-                        _ => {}
-                    }
+                    self.switch_tab(t);
                 }
+            }
+            if pad {
+                crate::pad::glyph(ui, Glyph::Rb, 22.0);
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 match self.online {
@@ -1310,9 +1591,37 @@ impl App {
         });
     }
 
+    /// Games the library shows: every visible game, or with games installed
+    /// (and "All games" off) only those.
+    fn library_ids(&self) -> (Vec<String>, usize) {
+        let visible: Vec<&GameState> =
+            self.games.iter().filter(|g| !g.desc.hidden && (self.show_hidden || !self.settings.hidden_games.contains(&g.desc.id))).collect();
+        let installed = visible.iter().filter(|g| g.installed.is_some()).count();
+        let only_installed = installed > 0 && !self.settings.show_all_games;
+        let ids = visible.iter().filter(|g| !only_installed || g.installed.is_some() || g.busy.is_some()).map(|g| g.desc.id.clone()).collect();
+        (ids, installed)
+    }
+
     fn library(&mut self, ui: &mut egui::Ui) {
+        let (ids, installed) = self.library_ids();
+        let total = self.games.iter().filter(|g| !g.desc.hidden && (self.show_hidden || !self.settings.hidden_games.contains(&g.desc.id))).count();
+        let pad = self.pad.active();
+        let mut toggle = installed > 0 && self.pad.take(Btn::X);
         ui.horizontal(|ui| {
             ui.heading("Library");
+            if installed > 0 {
+                ui.add_space(12.0);
+                // The filter: installed games only, or everything there is to install.
+                for (all, label) in [(false, format!("Installed ({installed})")), (true, format!("All games ({total})"))] {
+                    let sel = self.settings.show_all_games == all;
+                    if ui.add(egui::Button::selectable(sel, RichText::new(label).size(15.0)).corner_radius(CornerRadius::same(8))).clicked() && !sel {
+                        toggle = true;
+                    }
+                }
+                if pad {
+                    crate::pad::glyph(ui, Glyph::X, 20.0);
+                }
+            }
             let hidden = self.games.iter().filter(|g| self.settings.hidden_games.contains(&g.desc.id)).count();
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if hidden > 0 {
@@ -1323,6 +1632,10 @@ impl App {
                 }
             });
         });
+        if toggle {
+            self.settings.show_all_games = !self.settings.show_all_games;
+            self.settings.save();
+        }
         ui.add_space(6.0);
         if self.games.is_empty() {
             ui.label(
@@ -1330,134 +1643,237 @@ impl App {
                     .color(MUTED),
             );
         }
-        let avail = ui.available_width();
-        // Small tiles: five columns in the default 1280×800 window, so a
-        // library of ten games fits without scrolling.
-        let cols = ((avail + 16.0) / (220.0 + 16.0)).floor().max(1.0) as usize;
-        let w = (avail - 16.0 * (cols as f32 - 1.0)) / cols as f32;
-        let ids: Vec<String> = self
-            .games
-            .iter()
-            .filter(|g| !g.desc.hidden && (self.show_hidden || !self.settings.hidden_games.contains(&g.desc.id)))
-            .map(|g| g.desc.id.clone())
-            .collect();
+        // Portrait tiles, about 180 px wide: six columns in the 1280×800 window
+        // (the Steam Deck's screen).
+        let gap = 14.0;
+        let avail = ui.available_width() - 16.0;
+        let cols = ((avail + gap) / (172.0 + gap)).floor().max(1.0) as usize;
+        let w = (avail - gap * (cols as f32 - 1.0)) / cols as f32;
+        let h = w * 1.5;
+        let more = total - ids.len();
+        // A controller came in with nothing focused: start at the game we came
+        // back from, else the first one.
+        let focus = if self.pad.wants_focus || self.focus_tile.is_some() {
+            self.pad.wants_focus = false;
+            self.focus_tile.take().filter(|t| ids.contains(t)).or_else(|| ids.first().cloned())
+        } else {
+            None
+        };
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            for row in ids.chunks(cols) {
+            ui.add_space(2.0);
+            let mut cells: Vec<Option<&String>> = ids.iter().map(Some).collect();
+            if more > 0 {
+                cells.push(None);
+            }
+            for row in cells.chunks(cols) {
                 ui.horizontal_top(|ui| {
-                    for id in row {
-                        ui.allocate_ui(Vec2::new(w, 200.0), |ui| self.tile(ui, id, w));
-                        ui.add_space(16.0 - ui.spacing().item_spacing.x);
+                    ui.add_space(2.0);
+                    ui.spacing_mut().item_spacing.x = gap;
+                    for c in row {
+                        match c {
+                            Some(id) => self.tile(ui, id, Vec2::new(w, h), focus.as_ref() == Some(*id)),
+                            None => {
+                                // "+ N more": the way to the games that are not installed yet.
+                                let (r, resp) = ui.allocate_exact_size(Vec2::new(w, h), egui::Sense::click());
+                                let hl = resp.hovered() || focused(&resp);
+                                ui.painter().rect(
+                                    r,
+                                    CornerRadius::same(12),
+                                    PANEL,
+                                    Stroke::new(
+                                        if hl { 3.0 } else { 1.0 },
+                                        if focused(&resp) {
+                                            Color32::WHITE
+                                        } else if hl {
+                                            ACCENT
+                                        } else {
+                                            LINE
+                                        },
+                                    ),
+                                    egui::StrokeKind::Inside,
+                                );
+                                ui.painter().text(r.center() - Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, "+", display(44.0), MUTED);
+                                ui.painter().text(
+                                    r.center() + Vec2::new(0.0, 26.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    format!("{more} more to install"),
+                                    egui::FontId::proportional(14.0),
+                                    MUTED,
+                                );
+                                if resp.clicked() {
+                                    self.settings.show_all_games = true;
+                                    self.settings.save();
+                                }
+                            }
+                        }
                     }
                 });
-                ui.add_space(16.0);
+                ui.add_space(gap);
             }
         });
     }
 
-    fn tile(&mut self, ui: &mut egui::Ui, id: &str, w: f32) {
+    /// One library tile: the game's portrait art and, over it, icons for what
+    /// it offers (players on one screen, online, mods, ladder) and its state.
+    fn tile(&mut self, ui: &mut egui::Ui, id: &str, size: Vec2, focus: bool) {
         let Some(gi) = self.games.iter().position(|g| g.desc.id == id) else { return };
         let primary = self.primary(&self.games[gi]);
         let hidden = self.settings.hidden_games.contains(&id.to_string());
         let mut open = false;
         let mut act: Option<&str> = None;
-        Frame::new().fill(PANEL).stroke(Stroke::new(1.0, LINE)).corner_radius(CornerRadius::same(14)).show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.set_width(w);
-                let g = &self.games[gi];
-                let h = w * 430.0 / 920.0;
-                let resp = match &g.tile {
-                    Some(t) => ui.add(
-                        egui::Image::new(t)
-                            .fit_to_exact_size(Vec2::new(w, h))
-                            .corner_radius(CornerRadius { nw: 14, ne: 14, sw: 0, se: 0 })
-                            .sense(egui::Sense::click()),
-                    ),
-                    None => {
-                        let (r, resp) = ui.allocate_exact_size(Vec2::new(w, h), egui::Sense::click());
-                        ui.painter().rect_filled(r, CornerRadius::same(14), Color32::from_rgb(30, 30, 52));
-                        resp
-                    }
-                };
-                if resp.clicked() {
-                    open = true;
+        let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+        if focus {
+            resp.request_focus();
+        }
+        let g = &self.games[gi];
+        let hl = resp.hovered() || focused(&resp);
+        let p = ui.painter_at(rect.expand(4.0));
+        let round = CornerRadius::same(12);
+        match &g.portrait {
+            Some(t) => {
+                egui::Image::new(t).corner_radius(round).paint_at(ui, rect);
+            }
+            None => {
+                p.rect_filled(rect, round, Color32::from_rgb(30, 30, 52));
+                p.text(rect.center(), egui::Align2::CENTER_CENTER, &g.desc.name, egui::FontId::proportional(15.0), MUTED);
+            }
+        }
+        // Shade under the icons so they read on any artwork.
+        let band = 40.0;
+        let shade = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.bottom() - band), rect.max);
+        let mut mesh = egui::Mesh::default();
+        let (top, bottom) = (Color32::TRANSPARENT, Color32::from_black_alpha(200));
+        for (pos, c) in [(shade.left_top(), top), (shade.right_top(), top), (shade.right_bottom(), bottom), (shade.left_bottom(), bottom)] {
+            mesh.colored_vertex(pos, c);
+        }
+        mesh.add_triangle(0, 1, 2);
+        mesh.add_triangle(0, 2, 3);
+        p.add(mesh);
+        let c = g.desc.capabilities();
+        let mut x = rect.left() + 9.0;
+        let y = rect.bottom() - 15.0;
+        let mut icon = |glyph: Cap, n: Option<u32>, on: bool| {
+            let col = if on { Color32::WHITE } else { Color32::from_white_alpha(110) };
+            draw_glyph(&p, egui::pos2(x + 9.0, y), glyph, col, Color32::from_rgb(16, 16, 24));
+            x += 22.0;
+            if let Some(n) = n {
+                let r = p.text(egui::pos2(x - 2.0, y), egui::Align2::LEFT_CENTER, n.to_string(), egui::FontId::proportional(13.5), col);
+                x = r.right() + 8.0;
+            }
+        };
+        if let Some(n) = c.local_players {
+            icon(Cap::Pad, Some(n), true);
+        }
+        if let Some(n) = c.online_players {
+            icon(Cap::Globe, Some(n), c.online_now);
+        }
+        if c.mods {
+            icon(Cap::Puzzle, None, c.mods_now);
+        }
+        if c.ladder {
+            icon(Cap::Trophy, None, c.ladder_now);
+        }
+        // State, top right: update ready, running, not installed.
+        let chip = match (&g.installed, &primary) {
+            (_, Primary::Running) => Some(("Playing", OK)),
+            (_, Primary::Update) => Some(("Update", ACCENT2)),
+            (None, Primary::Install) => Some(("Not installed", MUTED)),
+            (_, Primary::FindData) => Some(("Files needed", WARN)),
+            _ => None,
+        };
+        if let Some((t, col)) = chip {
+            let galley = p.layout_no_wrap(t.to_string(), egui::FontId::proportional(12.0), col);
+            let r = egui::Rect::from_min_size(egui::pos2(rect.right() - galley.size().x - 18.0, rect.top() + 8.0), galley.size() + Vec2::new(12.0, 5.0));
+            p.rect_filled(r, CornerRadius::same(8), Color32::from_black_alpha(190));
+            p.galley(r.min + Vec2::new(6.0, 2.5), galley, col);
+        }
+        if let Primary::Busy(_) = primary {
+            let frac = g.progress.filter(|(_, t)| *t > 0).map(|(d, t)| d as f32 / t as f32);
+            let bar = egui::Rect::from_min_max(egui::pos2(rect.left() + 8.0, rect.bottom() - 34.0), egui::pos2(rect.right() - 8.0, rect.bottom() - 29.0));
+            p.rect_filled(bar, CornerRadius::same(3), Color32::from_black_alpha(160));
+            let t = ui.input(|i| i.time) as f32;
+            let fill = match frac {
+                Some(f) => egui::Rect::from_min_max(bar.min, egui::pos2(bar.left() + bar.width() * f, bar.bottom())),
+                // Unknown size: a moving stripe.
+                None => {
+                    let x0 = bar.left() + (t * 0.6).fract() * bar.width() * 0.75;
+                    egui::Rect::from_min_max(egui::pos2(x0, bar.top()), egui::pos2(x0 + bar.width() * 0.25, bar.bottom()))
                 }
-                Frame::new().inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
-                    capability_row(ui, &g.desc);
-                    ui.horizontal(|ui| {
-                        let status = match (&g.installed, &primary) {
-                            (_, Primary::Busy(b)) => b.clone(),
-                            (_, Primary::Running) => "Playing".into(),
-                            (Some(i), Primary::Update) => format!("{} - update ready", i.version),
-                            (Some(i), _) => format!("Installed {}", i.version),
-                            (None, Primary::FindData) => String::new(),
-                            (None, Primary::Unavailable(s)) => s.clone(),
-                            (None, _) => g
-                                .release
-                                .as_ref()
-                                .map(|r| format!("{} · {}", r.version, install::asset_for(r, install::platform()).map(|a| mb(a.1.size)).unwrap_or_default()))
-                                .unwrap_or_default(),
-                        };
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.menu_button(RichText::new("...").size(15.0), |ui| {
-                                if ui.button("Open game page").clicked() {
-                                    open = true;
-                                    ui.close();
-                                }
-                                if ui.button(if hidden { "Show in library" } else { "Hide from library" }).clicked() {
-                                    act = Some("hide");
-                                    ui.close();
-                                }
-                            });
-                            match &primary {
-                                Primary::Play => {
-                                    if tile_button(ui, "Play").clicked() {
-                                        act = Some("play");
-                                    }
-                                }
-                                Primary::Install => {
-                                    if tile_button(ui, "Install").clicked() {
-                                        act = Some("install");
-                                    }
-                                }
-                                Primary::Update => {
-                                    if tile_button(ui, "Update").clicked() {
-                                        act = Some("install");
-                                    }
-                                }
-                                Primary::FindData => {
-                                    if ui.button("Find game files").clicked() {
-                                        open = true;
-                                    }
-                                }
-                                Primary::Busy(_) => {
-                                    if let Some((d, t)) = g.progress
-                                        && t > 0
-                                    {
-                                        ui.add(egui::ProgressBar::new(d as f32 / t as f32).desired_width(80.0));
-                                    } else {
-                                        ui.spinner();
-                                    }
-                                }
-                                Primary::Unavailable(_) | Primary::Running => {}
-                            }
-                            // What is left of the row, truncated (full text on hover).
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                ui.add(egui::Label::new(RichText::new(status).color(MUTED).size(13.0)).truncate());
-                            });
-                        });
-                    });
-                    if let Some(e) = &g.error {
-                        ui.label(RichText::new(e).color(WARN).size(12.0));
-                    }
+            };
+            p.rect_filled(fill, CornerRadius::same(3), ACCENT2);
+        }
+        if let Some(e) = &g.error {
+            p.circle_filled(egui::pos2(rect.left() + 14.0, rect.top() + 14.0), 7.0, WARN);
+            p.text(egui::pos2(rect.left() + 14.0, rect.top() + 14.0), egui::Align2::CENTER_CENTER, "!", egui::FontId::proportional(12.0), Color32::BLACK);
+            let _ = e;
+        }
+        if hl {
+            p.rect_stroke(
+                rect.expand(2.0),
+                CornerRadius::same(14),
+                Stroke::new(3.0, if focused(&resp) { Color32::WHITE } else { ACCENT }),
+                egui::StrokeKind::Outside,
+            );
+        }
+        if hidden {
+            p.rect_filled(rect, round, Color32::from_black_alpha(140));
+        }
+        let name = g.desc.name.clone();
+        let tip = match (&g.error, &primary) {
+            (Some(e), _) => format!("{name}\n{e}"),
+            (_, Primary::Busy(b)) => format!("{name}\n{b}"),
+            _ => match &g.installed {
+                Some(i) => format!("{name} — installed {}", i.version),
+                None => name.clone(),
+            },
+        };
+        let resp = resp.on_hover_text(tip);
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+        if resp.clicked() {
+            open = true;
+        }
+        if focused(&resp) {
+            if self.pad.take(Btn::Y) {
+                act = Some(match primary {
+                    Primary::Play => "play",
+                    Primary::Install | Primary::Update => "install",
+                    _ => "open",
                 });
-            })
+            }
+            if self.pad.take(Btn::Start) {
+                act = Some("art");
+            }
+        }
+        resp.context_menu(|ui| {
+            let label = match primary {
+                Primary::Play => Some("Play"),
+                Primary::Install => Some("Install"),
+                Primary::Update => Some("Update"),
+                _ => None,
+            };
+            if let Some(l) = label
+                && ui.button(l).clicked()
+            {
+                act = Some(if l == "Play" { "play" } else { "install" });
+            }
+            if ui.button("Open game page").clicked() {
+                open = true;
+            }
+            if ui.button("Change artwork…").clicked() {
+                act = Some("art");
+            }
+            if ui.button(if hidden { "Show in library" } else { "Hide from library" }).clicked() {
+                act = Some("hide");
+            }
         });
-        if open {
+        if open || act == Some("open") {
             self.page = Some(id.to_string());
+            self.pad.focus_next = self.pad.active();
         }
         match act {
             Some("play") => self.play(id),
             Some("install") => self.install(id, false),
+            Some("art") => self.open_picker(id),
             Some("hide") => {
                 if hidden {
                     self.settings.hidden_games.retain(|g| g != id);
@@ -1485,21 +1901,40 @@ impl App {
             self.page = None;
             return;
         };
-        if ui.button("< Library").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        let back = ui
+            .horizontal(|ui| {
+                let b = ui.button("< Library");
+                if self.pad.active() {
+                    crate::pad::glyph(ui, Glyph::B, 20.0);
+                }
+                b.clicked()
+            })
+            .inner;
+        if back || (self.picker.is_none() && ui.input(|i| i.key_pressed(egui::Key::Escape))) {
             self.page = None;
+            if self.pad.active() {
+                self.focus_tile = Some(id.to_string());
+            }
             return;
         }
         let primary = self.primary(&self.games[gi]);
         let mut act: Option<String> = None;
+        let focus_primary = std::mem::take(&mut self.pad.wants_focus);
+        if self.pad.take(Btn::Start) {
+            act = Some("art".into());
+        }
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             let g = &self.games[gi];
-            let w = ui.available_width();
-            if let Some(t) = &g.tile {
-                let h = (w * 430.0 / 920.0).min(300.0);
-                ui.add(egui::Image::new(t).fit_to_exact_size(Vec2::new(w, h)).maintain_aspect_ratio(false).corner_radius(CornerRadius::same(14)));
-            }
-            ui.add_space(8.0);
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
+                if let Some(t) = &g.portrait {
+                    let r = ui
+                        .add(egui::Image::new(t).fit_to_exact_size(Vec2::new(150.0, 225.0)).corner_radius(CornerRadius::same(12)).sense(egui::Sense::click()));
+                    if r.on_hover_text("Change artwork").clicked() {
+                        act = Some("art".into());
+                    }
+                    ui.add_space(8.0);
+                }
                 ui.vertical(|ui| {
                     ui.label(RichText::new(&g.desc.name).font(display(32.0)).color(Color32::WHITE));
                     ui.label(RichText::new(&g.desc.tagline).color(MUTED));
@@ -1518,24 +1953,32 @@ impl App {
                         }
                     });
                     capability_row(ui, &g.desc);
-                });
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match &primary {
-                    Primary::Play => {
-                        if primary_button(ui, "Play", true).clicked() {
-                            act = Some("play".into());
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Change artwork…").clicked() {
+                            act = Some("art".into());
                         }
+                        if self.pad.active() {
+                            crate::pad::glyph(ui, Glyph::Menu, 20.0);
+                        }
+                    });
+                });
+                let mut big = |ui: &mut egui::Ui, text: &str, what: &str| {
+                    let r = primary_button(ui, text, true);
+                    if focus_primary {
+                        r.request_focus();
                     }
+                    if r.clicked() {
+                        act = Some(what.into());
+                    }
+                };
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match &primary {
+                    Primary::Play => big(ui, "Play", "play"),
                     Primary::Install => {
                         let size = g.release.as_ref().and_then(|r| install::asset_for(r, install::platform())).map(|a| mb(a.1.size)).unwrap_or_default();
-                        if primary_button(ui, &format!("Install  ({size})"), true).clicked() {
-                            act = Some("install".into());
-                        }
+                        big(ui, &format!("Install  ({size})"), "install");
                     }
-                    Primary::Update => {
-                        if primary_button(ui, "Update", true).clicked() {
-                            act = Some("install".into());
-                        }
-                    }
+                    Primary::Update => big(ui, "Update", "install"),
                     Primary::Busy(b) => {
                         ui.vertical(|ui| {
                             ui.label(b);
@@ -1761,6 +2204,7 @@ impl App {
             "rescan" => self.scan_data(id),
             "fetch" => self.fetch_data(id, false),
             "steam" => self.add_to_steam(Some(id.to_string())),
+            "art" => self.open_picker(id),
             "addfolder" => {
                 let f = self.data_folder_input.trim().to_string();
                 self.data_folder_input.clear();
@@ -2391,6 +2835,16 @@ impl App {
                     self.settings.save();
                 }
                 ui.label(RichText::new(format!("Extra folders searched for game files: {}", if self.settings.data_folders.is_empty() { "none".into() } else { self.settings.data_folders.join(", ") })).color(MUTED).size(13.0));
+                ui.add_space(6.0);
+                ui.label(RichText::new("Tile artwork comes from SteamGridDB (right-click a game, or Menu on a controller, to pick another or your own picture). It works without an account; with your own API key (steamgriddb.com → Preferences → API) the official API is used.").color(MUTED).size(13.0));
+                ui.horizontal(|ui| {
+                    ui.label("SteamGridDB API key");
+                    ui.add(egui::TextEdit::singleline(&mut self.settings.griddb_key).password(true).hint_text("optional").desired_width(260.0));
+                    if ui.button("Save").clicked() {
+                        self.settings.save();
+                        self.toast("Saved");
+                    }
+                });
             });
             ui.add_space(8.0);
             card(ui, |ui| {
@@ -2428,6 +2882,145 @@ impl App {
                 }
             });
         });
+    }
+
+    /// "Change artwork": SteamGridDB pictures, a search for another game,
+    /// a local file or the generated art.
+    fn picker_modal(&mut self, ctx: &egui::Context) {
+        let Some(p) = &self.picker else { return };
+        let game = p.game.clone();
+        let gname = self.games.iter().find(|g| g.desc.id == game).map(|g| g.desc.name.clone()).unwrap_or_default();
+        let current = self.settings.art.get(&game).cloned();
+        let pad = self.pad.active();
+        let mut choose: Option<Option<ArtChoice>> = None;
+        let mut search = false;
+        let mut file = false;
+        let mut open_hit: Option<(u64, String)> = None;
+        let mut more = false;
+        let width = (ctx.content_rect().width() - 80.0).clamp(560.0, 940.0);
+        let height = (ctx.content_rect().height() - 220.0).max(240.0);
+        let p = self.picker.as_mut().unwrap();
+        let resp = egui::Modal::new(egui::Id::unique("art-picker")).show(ctx, |ui| {
+            ui.set_width(width);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("Artwork for {gname}")).font(display(22.0)));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("Close").clicked() {
+                        choose = Some(current.clone());
+                    }
+                    if pad {
+                        crate::pad::glyph(ui, Glyph::B, 20.0);
+                    }
+                });
+            });
+            match &p.sgdb {
+                Some((id, n)) => ui.label(RichText::new(format!("Pictures for \"{n}\" from SteamGridDB (game {id}), best rated first.")).color(MUTED)),
+                None => ui.label(RichText::new("Search SteamGridDB for the game:").color(MUTED)),
+            };
+            ui.horizontal(|ui| {
+                let edit = ui.add(egui::TextEdit::singleline(&mut p.query).hint_text("game name on SteamGridDB").desired_width(260.0));
+                if (edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) | ui.button("Search").clicked() {
+                    search = true;
+                }
+                ui.separator();
+                if ui.button("Choose a file…").clicked() {
+                    file = true;
+                }
+                if ui.button("Generated art").on_hover_text("The launcher's own picture with the game's name").clicked() {
+                    choose = Some(Some(ArtChoice::Generated));
+                }
+                if current.is_some() && ui.button("Default").on_hover_text("Back to SteamGridDB's best picture for the game").clicked() {
+                    choose = Some(None);
+                }
+            });
+            if let Some(e) = &p.error {
+                ui.label(RichText::new(e).color(WARN));
+            }
+            if !p.hits.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    for h in p.hits.iter().take(12) {
+                        if ui.button(h.label()).clicked() {
+                            open_hit = Some((h.id, h.name.clone()));
+                        }
+                    }
+                });
+            }
+            ui.add_space(4.0);
+            egui::ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, |ui| {
+                let (tw, th) = (120.0, 180.0);
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(10.0, 10.0);
+                    for (i, g) in p.grids.iter().enumerate() {
+                        let chosen = matches!(&current, Some(ArtChoice::Griddb { url, .. }) if *url == g.url);
+                        let (rect, r) = ui.allocate_exact_size(Vec2::new(tw, th), egui::Sense::click());
+                        match p.thumbs.get(&g.id) {
+                            Some(t) => egui::Image::new(t).corner_radius(CornerRadius::same(8)).paint_at(ui, rect),
+                            None => {
+                                ui.painter().rect_filled(rect, CornerRadius::same(8), Color32::from_rgb(30, 30, 52));
+                            }
+                        }
+                        if chosen || r.hovered() || focused(&r) {
+                            let col = if focused(&r) {
+                                Color32::WHITE
+                            } else if chosen {
+                                OK
+                            } else {
+                                ACCENT
+                            };
+                            ui.painter().rect_stroke(rect, CornerRadius::same(8), Stroke::new(3.0, col), egui::StrokeKind::Outside);
+                        }
+                        if i == 0 && pad && !p.focused {
+                            r.request_focus();
+                            p.focused = true;
+                        }
+                        let by = g.author.as_ref().map(|a| format!("by {}", a.name)).unwrap_or_default();
+                        if r.on_hover_text(format!("{}×{} {by}", g.width, g.height)).clicked() {
+                            choose = Some(Some(ArtChoice::Griddb { game: p.sgdb.as_ref().map(|s| s.0).unwrap_or(0), url: g.url.clone() }));
+                        }
+                    }
+                    if p.more && !p.loading && ui.add_sized([tw, th], egui::Button::new("More…")).clicked() {
+                        more = true;
+                    }
+                });
+                if p.loading {
+                    ui.spinner();
+                }
+            });
+            ui.label(
+                RichText::new("Artwork by the SteamGridDB community; only the choice is stored, the pictures are fetched and cached on this computer.")
+                    .color(MUTED)
+                    .size(12.0),
+            );
+        });
+        if resp.should_close() && choose.is_none() {
+            choose = Some(current.clone());
+        }
+        let sgdb = p.sgdb.clone();
+        if search {
+            self.picker_search();
+        }
+        if let Some((id, n)) = open_hit {
+            if let Some(p) = self.picker.as_mut() {
+                p.focused = false;
+            }
+            self.picker_grids(id, n, 0);
+        }
+        if more && let Some((id, n)) = sgdb {
+            let page = self.picker.as_ref().map(|p| p.page + 1).unwrap_or(0);
+            self.picker_grids(id, n, page);
+        }
+        if file {
+            self.picker_file();
+        }
+        if let Some(c) = choose {
+            self.picker = None;
+            if self.pad.active() && self.page.is_none() {
+                self.focus_tile = Some(game.clone());
+            }
+            if c != current {
+                self.set_art(&game, c);
+            }
+        }
     }
 
     fn first_run_modal(&mut self, ctx: &egui::Context) {
@@ -2540,6 +3133,31 @@ impl App {
         self.tab = tab;
         self.page = page;
         self.first_run = modal;
+        // Controller navigation, as a player would do it.
+        let idx = self.shots.as_ref().unwrap().idx;
+        if self.shots.as_ref().unwrap().scripted != Some(idx) {
+            self.shots.as_mut().unwrap().scripted = Some(idx);
+            use crate::pad::Dir::*;
+            self.pad.script = match name.as_str() {
+                "library-pad" => vec![Right, Right, Right],
+                "art-picker" => vec![Right, Right, Down],
+                _ => Vec::new(),
+            };
+            if !self.pad.script.is_empty() {
+                ctx.memory_mut(|m| {
+                    if let Some(f) = m.focused() {
+                        m.surrender_focus(f)
+                    }
+                });
+            }
+        }
+        if name == "art-picker" && self.picker.is_none() {
+            if let Some(id) = self.games.iter().find(|g| g.desc.steamgriddb.is_some()).map(|g| g.desc.id.clone()) {
+                self.open_picker(&id);
+            }
+        } else if name != "art-picker" {
+            self.picker = None;
+        }
         let plan = self.shots.as_mut().unwrap();
         if !plan.waiting && plan.at.elapsed() > Duration::from_millis(2500) {
             plan.waiting = true;
@@ -2595,19 +3213,36 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         self.set_ctx(&ctx);
         self.screenshots(&ctx);
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::PageDown)) {
-            self.tab = match self.tab {
-                Tab::Library => Tab::Rooms,
-                Tab::Rooms => Tab::Ladder,
-                Tab::Ladder => Tab::Mods,
-                Tab::Mods => Tab::Settings,
-                t => t,
-            };
+        // LB/RB and Ctrl+PageUp/PageDown switch tabs (not while a dialog is open).
+        if self.picker.is_none() && !self.first_run {
+            let (prev, next) =
+                ctx.input(|i| (i.modifiers.command && i.key_pressed(egui::Key::PageUp), i.modifiers.command && i.key_pressed(egui::Key::PageDown)));
+            if self.pad.take(Btn::Lb) || prev {
+                self.step_tab(-1);
+            }
+            if self.pad.take(Btn::Rb) || next {
+                self.step_tab(1);
+            }
+        }
+        // A control focused by the D-pad scrolls into view.
+        let focused = ctx.memory(|m| m.focused());
+        if focused != self.last_focus {
+            self.last_focus = focused;
+            if let Some(r) = focused.and_then(|id| ctx.read_response(id))
+                && self.pad.last_used.is_some_and(|t| t.elapsed() < Duration::from_secs(2))
+            {
+                r.scroll_to_me(None);
+            }
         }
         egui::Panel::top("top").frame(Frame::new().fill(Color32::from_rgb(14, 14, 25)).inner_margin(Margin::symmetric(14, 10))).show(ui, |ui| self.top_bar(ui));
         egui::Panel::bottom("feedback")
             .frame(Frame::new().fill(Color32::from_rgb(14, 14, 25)).inner_margin(Margin::symmetric(14, 8)))
             .show(ui, |ui| self.feedback_bar(ui));
+        if self.pad.active() {
+            egui::Panel::bottom("hints")
+                .frame(Frame::new().fill(Color32::from_rgb(18, 18, 31)).inner_margin(Margin::symmetric(14, 6)))
+                .show(ui, |ui| self.hint_bar(ui));
+        }
         egui::CentralPanel::default().frame(Frame::new().fill(BG).inner_margin(Margin::same(18))).show(ui, |ui| {
             if self.lobby.is_some() {
                 self.lobby_view(ui);
@@ -2642,10 +3277,20 @@ impl eframe::App for App {
         if self.first_run {
             self.first_run_modal(&ctx);
         }
+        if self.picker.is_some() {
+            self.picker_modal(&ctx);
+        }
+        // A direction nobody used (a page without a natural first control):
+        // start at the first control of the page.
+        if self.pad.wants_focus && ctx.memory(|m| m.focused()).is_none() {
+            self.pad.wants_focus = false;
+            ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::Next));
+        }
     }
 
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
-        self.pad.feed(raw);
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        let focused = ctx.memory(|m| m.focused()).is_some();
+        self.pad.feed(raw, focused);
     }
 
     fn clear_color(&self, _v: &egui::Visuals) -> [f32; 4] {

@@ -12,9 +12,13 @@ optional: every game works on its own.
 
 ![Library](images/launcher-library.jpg)
 
-* **Library** — every game, with generated artwork. One button does what is
-  needed: *Install*, *Update* or *Play*. Hide games you do not care about with
-  the `...` menu ("Show hidden games" or Settings brings them back).
+* **Library** — a portrait tile per game with its artwork from
+  [SteamGridDB](https://www.steamgriddb.com) (or generated, when there is
+  none) and icons for what it offers: players on one screen, online, mods,
+  ladder. Click a tile for its page; right-click for *Play*/*Install*,
+  *Change artwork…* (another SteamGridDB picture, one of your own, or the
+  generated one) and *Hide*. With games installed, only those show;
+  *All games* shows the rest to install.
 * **Game page** — description, what's new, the game files it needs, open
   rooms, *Host a game*, *Add to Steam*, rollback to the previous version,
   uninstall.
@@ -82,6 +86,14 @@ and shows buy or free-download links if nothing is found. You can add a folder
 to search. Warpzone never uploads or shares these files.
 
 ## Steam and the Steam Deck
+
+**On the Deck**: in Desktop Mode, download `Install-Warpzone.desktop` from the
+[releases](https://github.com/jarvis-jhk/warpzone/releases) and open it. It
+installs the launcher and adds it to Steam with artwork; then start Warpzone
+from Game Mode. Everything works with the Deck's controls: D-pad to move,
+A to open, B to go back, Y to play or install, X for *All games*, Menu to
+change a game's artwork, L1/R1 to switch tabs — the bar at the bottom shows
+the buttons.
 
 *Add to Steam* (game page, or Settings for the launcher itself) creates a
 non-Steam shortcut with the game's name and full artwork (library capsule,

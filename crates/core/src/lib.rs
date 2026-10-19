@@ -12,6 +12,7 @@
 //! | [`client`] | the game-facing session: rooms, peers, ladder, events |
 //! | [`modstore`] | installing lockfiles, validating enabled mods |
 //! | [`gamedata`] | finding the player's original game data (Steam, GOG, Downloads, ...) |
+//! | [`griddb`] | SteamGridDB artwork, looked up at run time and cached |
 //! | [`install`] | installing and updating games from their releases |
 //! | [`template`] | tier-0 launch-file templates |
 //! | [`tunnel`] | tier-0 tunnel: a game's own UDP traffic over Warpzone |
@@ -26,6 +27,7 @@ pub mod api;
 pub mod client;
 pub mod feedback;
 pub mod gamedata;
+pub mod griddb;
 pub mod identity;
 pub mod install;
 pub mod launch;

@@ -1,0 +1,9 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Name=Install Warpzone
+Comment=Install the Warpzone launcher and add it to Steam
+Exec=sh -c 'rm -f /tmp/install-warpzone.sh && curl -fsSL https://raw.githubusercontent.com/jarvis-jhk/warpzone/main/packaging/steamdeck/install-warpzone.sh -o /tmp/install-warpzone.sh && grep -q "END OF FILE" /tmp/install-warpzone.sh && bash /tmp/install-warpzone.sh || zenity --error --text="Downloading the Warpzone installer failed. Please try again."'
+Icon=steamdeck-gaming-return
+Terminal=true
+Type=Application
+StartupNotify=false

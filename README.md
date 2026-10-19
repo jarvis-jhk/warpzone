@@ -31,7 +31,9 @@ game's own UDP traffic), tier 3 uses everything.
 
 Download the launcher from the [website](https://warpzone.virtualtabletop.io#launcher)
 or the [releases](https://github.com/jarvis-jhk/warpzone/releases) — on Linux and the
-Steam Deck as a single self-updating AppImage — or just
+Steam Deck as a single self-updating AppImage; on the Deck, open
+`Install-Warpzone.desktop` in Desktop Mode and it lands in your Steam library,
+fully playable with the Deck's controls — or just
 play a game that has Warpzone built in. There is **no password, no e-mail and
 no chat**: your device has a key, you pick a username, and rooms say who they
 are for (language, skill, casual or serious). Private games use a 6-letter code,

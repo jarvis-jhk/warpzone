@@ -79,6 +79,11 @@ pub struct GameDescriptor {
     /// `art`: `arena`, `blocks`, `castle`, `crypt`, `pipes`, `tanks`, `waves`.
     #[serde(default)]
     pub motif: Option<String>,
+    /// The game's id on SteamGridDB (`steamgriddb.com/game/<id>`): the
+    /// launcher looks up portrait art there at run time and caches it. Only
+    /// the id is stored; no artwork is shipped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steamgriddb: Option<u64>,
 }
 
 /// How the game appears in Steam when the launcher adds it as a non-Steam

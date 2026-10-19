@@ -11,6 +11,7 @@ A native C port of Super Mario Land that loads every graphic, level and sound fr
 Warpzone brings its mod archive (levels, worlds, tilesets, skins, Lua behaviours), leaderboards for speedruns, and a shared-screen mode where up to 16 players each play their own game and watch everyone else's."""
 homepage = "https://github.com/jarvis-jhk/super-mario-land-port"
 accent = "#ef4444"
+steamgriddb = 19720   # Super Mario Land — library art, looked up at run time
 tier = 0
 local_players = 1
 status = "in development"

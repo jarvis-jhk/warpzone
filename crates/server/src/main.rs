@@ -122,13 +122,15 @@ async fn game(State(s): State<AppState>, Path(id): Path<String>, headers: Header
 /// since for them (they ignore what they could not use anyway).
 fn for_client(headers: &HeaderMap, mut v: serde_json::Value) -> serde_json::Value {
     let ua = headers.get(axum::http::header::USER_AGENT).and_then(|h| h.to_str().ok()).unwrap_or("");
-    // 0.1.2 added local_players, data.optional and tier0.relaunch_linger; 0.1.3 data.fetch.
+    // 0.1.2 added local_players, data.optional and tier0.relaunch_linger; 0.1.3 data.fetch
+    // and steamgriddb.
     let before_012 = matches!(ua, "warpzone-core/0.1.0" | "warpzone-core/0.1.1");
     if !before_012 && ua != "warpzone-core/0.1.2" {
         return v;
     }
     let strip = |g: &mut serde_json::Value| {
         let Some(g) = g.as_object_mut() else { return };
+        g.remove("steamgriddb");
         if before_012 {
             g.remove("local_players");
             if let Some(t) = g.get_mut("tier0").and_then(|t| t.as_object_mut()) {
@@ -388,7 +390,7 @@ mod tests {
 
     #[test]
     fn old_clients_get_descriptors_they_can_read() {
-        let v = serde_json::json!([{ "id": "g", "local_players": 4, "tier0": { "relaunch_linger": 120, "port": 1 }, "data": [{ "id": "rom", "optional": true, "fetch": [] }] }]);
+        let v = serde_json::json!([{ "id": "g", "steamgriddb": 34237, "local_players": 4, "tier0": { "relaunch_linger": 120, "port": 1 }, "data": [{ "id": "rom", "optional": true, "fetch": [] }] }]);
         let ua = |v: &str| {
             let mut h = HeaderMap::new();
             h.insert(axum::http::header::USER_AGENT, v.parse().unwrap());

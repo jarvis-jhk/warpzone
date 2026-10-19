@@ -69,6 +69,12 @@ pub fn register_uri_handler() -> std::io::Result<()> {
             exe()
         ),
     )?;
+    // The icon the entry names, in the user's icon theme.
+    let icons = h.join(".local/share/icons/hicolor/256x256/apps");
+    if std::fs::create_dir_all(&icons).is_ok() {
+        let (w, hh, px) = crate::art::render(&crate::art::Spec { id: "warpzone", name: "Warpzone", accent: "#7c5cff", motif: "waves" }, crate::art::Kind::Icon);
+        let _ = crate::art::save_png(&icons.join("warpzone.png"), w, hh, &px);
+    }
     let _ = std::process::Command::new("xdg-mime").args(["default", "warpzone.desktop", "x-scheme-handler/warpzone"]).status();
     let _ = std::process::Command::new("update-desktop-database").arg(&apps).status();
     Ok(())
@@ -166,6 +172,54 @@ pub fn pick_folder(title: &str) -> std::io::Result<Option<PathBuf>> {
         tries.push(k);
     }
     let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, "no folder dialog found (zenity or kdialog)");
+    for mut c in tries {
+        match c.stderr(std::process::Stdio::null()).output() {
+            Ok(out) => {
+                let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                return Ok((out.status.success() && !p.is_empty()).then(|| PathBuf::from(p)));
+            }
+            Err(e) => last = e,
+        }
+    }
+    Err(last)
+}
+
+/// Ask the user for a file with the desktop's own dialog (`exts`: allowed
+/// extensions, without dots). Blocks: call it from a job. `Err` when no
+/// dialog program exists, `Ok(None)` when the user cancelled.
+pub fn pick_file(title: &str, exts: &[&str]) -> std::io::Result<Option<PathBuf>> {
+    let start = home().unwrap_or_default();
+    let mut tries: Vec<std::process::Command> = Vec::new();
+    if cfg!(windows) {
+        let filter = exts.iter().map(|e| format!("*.{e}")).collect::<Vec<_>>().join(";");
+        let script = format!(
+            "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; \
+             $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='{}'; $d.Filter='Pictures|{filter}'; \
+             if($d.ShowDialog() -eq 'OK'){{ $d.FileName }}",
+            title.replace('\'', "''")
+        );
+        let mut c = std::process::Command::new("powershell");
+        c.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
+        tries.push(c);
+    } else if cfg!(target_os = "macos") {
+        let mut c = std::process::Command::new("osascript");
+        c.args(["-e", &format!("POSIX path of (choose file with prompt \"{}\")", title.replace('"', "'"))]);
+        tries.push(c);
+    } else {
+        let pattern = exts.iter().map(|e| format!("*.{e}")).collect::<Vec<_>>().join(" ");
+        let mut z = std::process::Command::new("zenity");
+        z.args(["--file-selection", "--title", title, "--file-filter", &format!("Pictures | {pattern}"), "--filename"]).arg(format!("{}/", start.display()));
+        tries.push(z);
+        let mut k = std::process::Command::new("kdialog");
+        k.args(["--title", title, "--getopenfilename"]).arg(&start).arg(format!("Pictures ({pattern})"));
+        tries.push(k);
+    }
+    let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, "no file dialog found (zenity or kdialog)");
     for mut c in tries {
         match c.stderr(std::process::Stdio::null()).output() {
             Ok(out) => {

@@ -25,6 +25,24 @@ pub struct Settings {
     pub last_game: Option<String>,
     /// Report games that crash (with their last log lines) to the server.
     pub crash_reports: bool,
+    /// Library tile art the player chose, per game (else SteamGridDB's best).
+    pub art: BTreeMap<String, ArtChoice>,
+    /// Personal SteamGridDB API key (optional; empty = public endpoints).
+    pub griddb_key: String,
+    /// Library: show every game, not only the installed ones.
+    pub show_all_games: bool,
+}
+
+/// Where a game's library tile comes from.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(tag = "from", rename_all = "lowercase")]
+pub enum ArtChoice {
+    /// A SteamGridDB grid (`game`: its SteamGridDB game, `url`: the image).
+    Griddb { game: u64, url: String },
+    /// A picture on this computer.
+    File { path: String },
+    /// The launcher's generated artwork.
+    Generated,
 }
 
 impl Default for Settings {
@@ -39,6 +57,9 @@ impl Default for Settings {
             hinted_background: false,
             last_game: None,
             crash_reports: true,
+            art: BTreeMap::new(),
+            griddb_key: String::new(),
+            show_all_games: false,
         }
     }
 }

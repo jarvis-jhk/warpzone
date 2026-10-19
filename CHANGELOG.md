@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- Launcher: the library is a wall of portrait tiles, like Steam's — each
+  game's artwork from SteamGridDB with no name over it, only icons for
+  players on one screen, online, mods and ladder, and the game's state in
+  the corner. Descriptors carry only the SteamGridDB id (new field
+  `steamgriddb`); the launcher looks the art up at run time and caches it,
+  so it shows offline too. Games without artwork keep the generated picture
+  with their name. *Change artwork…* picks another SteamGridDB picture,
+  searches SteamGridDB for any game, takes your own picture file or goes
+  back to the generated one; the choice is also used by *Add to Steam*.
+  Optional personal SteamGridDB API key in Settings. Servers leave
+  `steamgriddb` out for launchers up to 0.1.2.
+
+- Launcher: controller navigation that feels native on the Steam Deck. The
+  D-pad and stick move between controls in their direction (held: repeat),
+  A opens, B goes back, Y plays or installs the focused game, X switches the
+  library between installed and all games, Menu changes artwork, LB/RB
+  switch tabs (LB did nothing before). Button glyphs in the tab bar and a
+  hint bar at the bottom whenever a controller is connected. Buttons now
+  work while the window is idle, and are ignored while a game has the focus.
+
+- Launcher: with games installed, the library shows only those; *All
+  games* or the "+ N more to install" tile shows the others.
+
+- Steam Deck installer: `Install-Warpzone.desktop` (a release asset), opened
+  in Desktop Mode, installs the launcher AppImage (checked against GitHub's
+  SHA-256), adds it to Steam with artwork, a menu entry and the
+  `warpzone://` handler, and offers to go back to Game Mode.
+  `warpzone --add-to-steam` does the Steam part on any Linux desktop.
+
 - Build option: pure-Rust crypto. `--no-default-features --features
   pure-rust-crypto` builds every crate (server, libwarpzone, `wz`, launcher)
   with RustCrypto's rustls provider for HTTPS instead of `ring`, so no C

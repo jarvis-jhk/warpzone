@@ -295,7 +295,17 @@ pub async fn index(State(state): State<AppState>) -> Html<String> {
     }
 
     let launcher = match releases.get(crate::releases::LAUNCHER) {
-        Some(r) if !r.assets.is_empty() => downloads(Some(r), None),
+        Some(r) if !r.assets.is_empty() => {
+            let mut html = downloads(Some(r), None);
+            // The Steam Deck installer ships with every release from 0.1.3 on.
+            if semver::Version::parse(r.version.trim_start_matches('v')).is_ok_and(|v| v >= semver::Version::new(0, 1, 3)) {
+                html.push_str(&format!(
+                    r#"<p class="ver"><b>Steam Deck:</b> in Desktop Mode, download <a href="{src}/releases/download/v{v}/Install-Warpzone.desktop">Install-Warpzone.desktop</a> and open it — it installs the launcher and adds it to Steam with artwork, ready for Game Mode.</p>"#,
+                    v = esc(r.version.trim_start_matches('v'))
+                ));
+            }
+            html
+        }
         _ => format!(
             r#"<div class="dl"><a class="btn" href="{src}/releases">Launcher builds on GitHub</a></div><p class="ver">The first launcher release is on its way; until then, games work on their own.</p>"#
         ),

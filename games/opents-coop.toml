@@ -16,6 +16,7 @@ A fork of OpenTS, the open rebuild of the Command & Conquer: Tiberian Sun engine
 The Warpzone launcher can stage its network games without port forwarding by tunnelling the game's UDP traffic."""
 homepage = "https://github.com/jarvis-jhk/opents-coop"
 accent = "#84cc16"
+steamgriddb = 37484   # Command & Conquer: Tiberian Sun — library art, looked up at run time
 tier = 0
 local_players = 1
 status = "launcher co-op campaign experimental"

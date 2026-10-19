@@ -42,6 +42,7 @@ started into a network game from a file or arguments.
 | `art` | URL | banner image for the website card (else a generated gradient) |
 | `accent` | `#rrggbb` | accent colour of cards and generated artwork |
 | `motif` | string | generated artwork style: `arena`, `blocks`, `castle`, `crypt`, `pipes`, `ruins`, `tanks`, `waves` (default) |
+| `steamgriddb` | integer | the game's [SteamGridDB](https://www.steamgriddb.com) id (`steamgriddb.com/game/<id>`): the launcher's library tile shows its best portrait grid, looked up at run time and cached; players can pick another. Without it, the tile is generated |
 | `tier` | 0–3 | integration [tier](integration.md#tiers) the game implements today; online/ranked/mod badges show only from tier 2 |
 | `local_players` | number | players on one machine with controllers — the controller icon in the library and on the website |
 | `third_party` | bool | not made by this project |
@@ -202,7 +203,8 @@ icon = "https://…/icon.png"        # square
 ```
 
 Missing images are generated from the game's name, accent and motif, so the
-artwork set is always complete. Only use art you are allowed to distribute.
+artwork set is always complete; the portrait capsule is the library tile's
+art (SteamGridDB or the player's own choice) when there is one. Only use art you are allowed to distribute.
 
 ## `[tier0]` — launcher-run lobbies
 

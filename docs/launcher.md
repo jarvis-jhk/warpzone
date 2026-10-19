@@ -12,6 +12,7 @@ warpzone --play <game>              update if needed, start the game, exit (Stea
 warpzone --background               start hidden (the autostart entry of background mode)
 warpzone --screenshot-dir <dir>     render every screen to PNG and exit (docs, tests)
 warpzone --render-art <dir>         write every game's generated artwork and exit
+warpzone --add-to-steam             menu entry, warpzone:// links and a Steam shortcut for the launcher, then exit
 ```
 
 A second start hands its arguments to the running launcher (a loopback TCP
@@ -27,6 +28,7 @@ port recorded in `<data>/launcher.port`) and exits, so invite links and
 | `<data>/games/<game>/<version>/` | installed games; `current` and `previous` name the active and rollback versions |
 | `<data>/games/<game>/<version>/.warpzone-managed` | marks a launcher install: the game's own updater stays silent |
 | `<data>/mods/<game>/` | installed mods and `active.lock.json` |
+| `<data>/cache/griddb/` | SteamGridDB grid lists (kept a week) and downloaded tile pictures |
 
 `<data>` is `~/.local/share/warpzone` on Linux (or `$XDG_DATA_HOME/warpzone`),
 `%APPDATA%\warpzone` on Windows; `WARPZONE_HOME` overrides it.
@@ -119,10 +121,61 @@ Settings → *Open warpzone:// links with Warpzone* registers the scheme:
 `MimeType=x-scheme-handler/warpzone` and `xdg-mime default`, or
 `HKCU\Software\Classes\warpzone` on Windows.
 
+## Library tiles
+
+Every game is a portrait tile (2:3, like Steam's library) with no name on
+it — only icons for what it offers: players on one screen, online players,
+mods, ranked ladder (dim while still coming), plus *Update*, *Playing*,
+*Not installed* or *Files needed* in the corner and a progress bar while
+installing. The art is the best-rated static portrait grid on
+[SteamGridDB](https://www.steamgriddb.com) for the descriptor's
+`steamgriddb` id, looked up at run time — the repository and the server
+carry only the id — and cached in `<data>/cache/griddb/`, so it shows
+offline too. Games without SteamGridDB art get the generated capsule, which
+does show the name. Grids marked NSFW, humour or epilepsy and animated ones
+are never offered.
+
+*Change artwork…* (right-click a tile, Menu on a controller, or the game
+page) shows the game's SteamGridDB grids, searches SteamGridDB for any other
+game, takes a picture file from this computer, or goes back to the generated
+art. The choice is kept in `launcher.json`; a chosen picture also becomes the
+portrait capsule of *Add to Steam*. Without an account the launcher uses
+SteamGridDB's public endpoints; with a personal API key (Settings → Library)
+the documented v2 API.
+
+Once games are installed, the library shows only those; *All games* (or X
+on a controller, or the "+ N more to install" tile) shows the others.
+
 ## Controllers
 
-Gamepads (via gilrs) drive egui's keyboard navigation: D-pad/left stick =
-Tab/Shift+Tab, A = Enter, B = Escape, Y = Space, LB/RB = switch tabs.
+A controller drives everything, so the launcher feels native in Steam Deck
+Game Mode. A thread reads the gamepads (gilrs) and wakes the window, so
+buttons work while nothing else happens on screen; while another window (a
+game) has the focus, the launcher ignores them.
+
+| Button | Does |
+|---|---|
+| D-pad / left stick | move to the next control in that direction (held: repeats); the focused control scrolls into view |
+| A | activate (open a game, press a button) |
+| B | back (game page → library, close a dialog) |
+| X | library: *Installed* / *All games* |
+| Y | library: *Play*, *Install* or *Update* the focused game |
+| Menu (Start) | *Change artwork* of the focused game |
+| LB / RB | previous / next tab (also Ctrl+PageUp/PageDown) |
+
+With a controller connected (or on a Steam Deck) the tab bar shows LB/RB and
+a hint bar at the bottom shows what each button does on the current page.
+
+## Steam Deck installer
+
+`Install-Warpzone.desktop` (a release asset; source in
+[`packaging/steamdeck`](../packaging/steamdeck)) is opened in Desktop Mode.
+It downloads `install-warpzone.sh` from this repository, which asks once,
+downloads the newest launcher AppImage into `~/Applications/Warpzone.AppImage`
+(verified against GitHub's SHA-256 of the asset), runs
+`Warpzone.AppImage --add-to-steam` — menu entry, `warpzone://` handler and a
+Steam shortcut with artwork, closing Steam for that moment — and offers to go
+back to Game Mode. Running it again updates both.
 
 ## Headless screenshots
 

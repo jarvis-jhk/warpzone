@@ -6,6 +6,7 @@ description = """
 A DevilutionX fork targeting one to four controllers on a shared screen: independent inventories, spells and merchants that never pause anyone else. Linux, Windows and the Steam Deck."""
 homepage = "https://github.com/jarvis-jhk/diablo-splitscreen"
 accent = "#b91c1c"
+steamgriddb = 34237   # Diablo — library art, looked up at run time
 tier = 0
 local_players = 4
 status = "in development"

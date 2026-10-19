@@ -59,6 +59,8 @@ jobs:
           # Self-updating AppImage (plus its .zsync for AppImageUpdate), with the same legal files.
           bash packaging/linux/build-appimage.sh target/release/warpzone $V dist $d
           rm -rf $d
+          # Steam Deck: open in Desktop Mode; installs the AppImage and adds it to Steam.
+          cp "packaging/steamdeck/Install Warpzone.desktop" dist/Install-Warpzone.desktop
       - uses: actions/upload-artifact@v4
         with:
           name: linux

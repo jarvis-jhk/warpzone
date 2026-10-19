@@ -10,6 +10,7 @@ A fork of Return To The Roots in which several players run one tribe together, l
 Warpzone adds rooms without port forwarding, and a mod archive for maps, scenarios and campaigns."""
 homepage = "https://github.com/jarvis-jhk/s25coop"
 accent = "#3b82f6"
+steamgriddb = 5247477   # The Settlers 2: Gold Edition — library art, looked up at run time
 tier = 0
 local_players = 4
 requires = "the original The Settlers II data (GOG installer or CD) — the installer extracts it"

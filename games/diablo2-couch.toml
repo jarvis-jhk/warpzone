@@ -6,6 +6,7 @@ description = """
 Couch co-op for Diablo II, built on D2Decomp, an open reimplementation of the engine: one shared camera, one controller and one hero per player, and personal inventories that never pause the game. Linux, the Steam Deck and Windows."""
 homepage = "https://github.com/jarvis-jhk/diablo2-couch"
 accent = "#a16207"
+steamgriddb = 37743   # Diablo II — library art, looked up at run time
 tier = 0
 local_players = 4
 status = "in development"

@@ -8,6 +8,7 @@
 //! warpzone --screenshot-dir <dir>   render every screen to PNGs and exit (tests, docs)
 //! warpzone --render-art <dir>       write every game's generated artwork as PNGs and exit
 //! warpzone --render-icon <file>     write the launcher icon (256×256 PNG) and exit
+//! warpzone --add-to-steam           menu entry, warpzone:// links and a Steam shortcut, then exit
 //! ```
 //!
 //! A second start hands its arguments to the running launcher and exits.
@@ -21,6 +22,7 @@ mod pixel;
 mod settings;
 mod steam;
 mod system;
+mod tileart;
 
 use std::time::Instant;
 
@@ -84,6 +86,24 @@ fn main() {
         }
         return;
     }
+    if args.iter().any(|a| a == "--add-to-steam") {
+        // The Steam Deck installer: menu entry, warpzone:// links and a Steam
+        // shortcut with artwork (closing Steam first when it runs).
+        let settings = settings::Settings::load();
+        let identity = warpzone_core::identity::Identity::shared().unwrap_or_else(|_| warpzone_core::identity::Identity::generate());
+        let api = std::sync::Arc::new(warpzone_core::api::Api::new(&settings.server(), std::sync::Arc::new(identity)));
+        if let Err(e) = system::register_uri_handler() {
+            eprintln!("desktop entry: {e}");
+        }
+        match app::SteamJob::warpzone(api).run() {
+            Ok(n) => println!("Warpzone added to Steam ({n} user{})", if n == 1 { "" } else { "s" }),
+            Err(e) => {
+                eprintln!("Add to Steam: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     if args.iter().any(|a| a == "--version") {
         println!("warpzone {}", env!("CARGO_PKG_VERSION"));
         return;
@@ -138,15 +158,20 @@ fn main() {
                     steps: vec![
                         ("first-run".into(), app::Tab::Library, None, true),
                         ("library".into(), app::Tab::Library, None, false),
+                        // The same, moved through with a controller's D-pad.
+                        ("library-pad".into(), app::Tab::Library, None, false),
                         ("game-page".into(), app::Tab::Library, first.or(Some("funny-furries".into())), false),
                         ("rooms".into(), app::Tab::Rooms, None, false),
                         ("ladder".into(), app::Tab::Ladder, None, false),
                         ("mods".into(), app::Tab::Mods, None, false),
                         ("settings".into(), app::Tab::Settings, None, false),
+                        // Opens "Change artwork" for the first game with SteamGridDB art.
+                        ("art-picker".into(), app::Tab::Library, None, false),
                     ],
                     idx: 0,
                     at: Instant::now(),
                     waiting: false,
+                    scripted: None,
                 });
             }
             Ok(Box::new(a))

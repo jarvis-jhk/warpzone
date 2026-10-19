@@ -11,6 +11,7 @@ A faithful remake of the two-player local versus mode of Dr. Mario 64: modes NOR
 Not affiliated with Nintendo; no game data is included. Sound effects come from your own ROM if you have one."""
 homepage = "https://github.com/jarvis-jhk/drmario64-vs"
 accent = "#e11d48"
+steamgriddb = 37541   # Dr. Mario 64 — library art, looked up at run time
 tier = 0
 local_players = 2
 status = "preview"
