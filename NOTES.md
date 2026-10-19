@@ -1,5 +1,24 @@
 # Notes
 
+- 2026-10-19 (request t_mvezo9ej4iovu, Jan): launcher library = SteamGridDB
+  portrait tiles (descriptor `steamgriddb` id only; core griddb.rs, launcher
+  tileart.rs; cache <data>/cache/griddb), "Change artwork…" picker (grids,
+  SGDB search, local file, generated), installed-only filter, controller
+  navigation (pad.rs: gamepad thread, spatial D-pad focus, glyph hint bar),
+  Steam Deck installer (packaging/steamdeck, release asset
+  Install-Warpzone.desktop, `warpzone --add-to-steam`). SteamGridDB has no
+  keyless v2 API: without a personal key (Settings) the launcher uses the
+  website's public endpoints (`/api/public/search/autocomplete`,
+  POST `/api/public/search/assets`, pages count from 0) — undocumented, so if
+  tiles fall back to generated art for everyone, check those first. Docs
+  screenshots deliberately NOT updated: they would put SGDB community/box art
+  into this public repo. Headless shots: system Xvfb :217 + .toolchain/xlibs,
+  `SteamDeck=1` shows the hint bar, steps library-pad/art-picker script the
+  D-pad. Asked lanes baba-port, bopl-port, rounds-port, towerfall-port,
+  opens4 to add their ids (22797, 5389529, 5281211, 3049, 5248521) to their
+  vtt descriptors after the 0.1.3 server deploy. The Deck installer's
+  zenity/Steam steps were not run on a real Deck (no device in this lane).
+
 - 2026-10-18 (request t_mvczzhug1bsbc6, Jan: "Give Warpzone an option to use
   pure-Rust crypto"): cargo feature `pure-rust-crypto` on every crate
   (default `ring`). Only HTTPS used non-Rust crypto (ureq -> rustls -> ring);

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3
 
 - Launcher: the library is a wall of portrait tiles, like Steam's — each
   game's artwork from SteamGridDB with no name over it, only icons for
