@@ -265,7 +265,11 @@ pub unsafe extern "C" fn wz_handle_launch(c: *mut WzClient, argc: c_int, argv: *
     }
     let intent = warpzone_core::launch::from_args(&args);
     if let Some(room) = intent.join {
-        c.inner.join(&room, None, intent.secret.as_deref());
+        c.inner.join(&room, intent.code.as_deref(), intent.secret.as_deref());
+        return 1;
+    }
+    if let Some(code) = intent.code {
+        c.inner.join_code(&code);
         return 1;
     }
     if intent.host { 2 } else { 0 }

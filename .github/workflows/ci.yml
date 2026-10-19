@@ -43,3 +43,13 @@ jobs:
       - run: cargo build -p warpzone-capi
       - run: cargo build -p warpzone-cli -p warpzone-launcher
       - run: cargo test -p warpzone-protocol -p warpzone-core
+
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .toolchain/android/downloads
+          key: android-toolchain-${{ hashFiles('tools/fetch-android.sh') }}
+      - run: tools/fetch-android.sh && JAVA_HOME= ANDROID_HOME= android/build.sh

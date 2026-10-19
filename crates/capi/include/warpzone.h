@@ -130,8 +130,8 @@ void wz_join(wz_client *c, const char *room, const char *code, const char *secre
 /* Join by the 6-character code alone. */
 void wz_join_code(wz_client *c, const char *code);
 
-/* Read --warpzone-join/--warpzone-host from argv (and the environment).
- * Returns 1 if it started joining a room, 2 if the launcher asked for the
+/* Read --warpzone-join/--warpzone-host/--warpzone-code from argv (and the environment).
+ * Returns 1 if it started joining a room (by id or code), 2 if the launcher asked for the
  * host screen (open it and call wz_host), 0 otherwise. */
 int wz_handle_launch(wz_client *c, int argc, const char *const *argv);
 

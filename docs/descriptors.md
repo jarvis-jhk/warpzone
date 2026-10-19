@@ -64,7 +64,10 @@ assets = { linux = "game-*-linux-x86_64.tar.gz", deck = "game-*-linux-x86_64.tar
 ```
 
 Asset patterns use `*`. Platforms: `linux`, `windows`, `deck` (falls back to
-`linux`), `portmaster` (download button only). The launcher verifies every
+`linux`), `portmaster` (download button only), `android` (an APK: the
+[Android launcher](launcher.md#android) shows only games that have one, and
+installs it through Android's package installer; servers before 0.1.6 reject
+the key). The launcher verifies every
 download against **GitHub's own SHA-256 digest** of the asset (or the
 checksum file), never against the Warpzone server, and with `minisign_key`
 also against a signature.
@@ -83,6 +86,13 @@ import = []                                 # the game's own first-start importe
 `exec` is relative to the install directory; a `*` matches one path segment
 (versioned top-level folders). The launcher sets `WARPZONE_LAUNCHED=1` and
 `WARPZONE_SERVER` in the game's environment.
+
+On Android, `exec.android` is the game's **package name**
+(`exec = { ..., android = "org.babaport" }`): the Android launcher uses it to
+see whether the game is installed and which version, and to start it. `join`
+and `host` arrive as the string-array extra `warpzone.args` of the launch
+intent (plus `warpzone.launched = true` and `warpzone.server`), see
+[integration](integration.md#android).
 
 ## `[rooms]`
 

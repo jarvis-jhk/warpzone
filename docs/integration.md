@@ -154,8 +154,25 @@ if (intent == 2) open_host_screen();           /* then wz_host(...) */
 ```
 
 `wz_handle_launch` also understands invite links passed as an argument
-(`warpzone://join/<room>#<secret>`) and the environment variables
-`WARPZONE_JOIN` / `WARPZONE_HOST=1`.
+(`warpzone://join/<room>#<secret>`), `--warpzone-code <CODE>` (join a private
+game by its code; with `--warpzone-join` it is that room's code) and the
+environment variables `WARPZONE_JOIN` / `WARPZONE_HOST=1`.
+
+### Android
+
+The [Android launcher](launcher.md#android) cannot pass a command line. It
+starts the game's launch activity with the same arguments as the
+string-array extra **`warpzone.args`** (e.g. `["--warpzone-join", "<room or
+invite link>"]`, `["--warpzone-host"]`, `["--warpzone-code", "K7QM3X"]`),
+plus `warpzone.launched` (boolean) and `warpzone.server` (string). Read them
+in `onCreate` and `onNewIntent` (the launcher adds `FLAG_ACTIVITY_CLEAR_TOP`
+when it passes arguments, so a running game is restarted into the room) and
+hand them to `wz_handle_launch` or `warpzone_core::launch::from_args`. The
+Android launcher has no account of its own: it has not joined the room
+first, so a private room needs its code or invite link, which it passes on.
+Name the package in the descriptor (`launch.exec.android`) and publish the
+APK with the release (`install.assets.android`), listed in the release's
+`SHA256SUMS`: the launcher installs nothing it cannot check.
 
 ## 5. Tier 2: hosting, browsing, playing
 

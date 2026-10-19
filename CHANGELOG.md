@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.6
+
+- **Warpzone for Android**: a light launcher for phones and tablets
+  (`warpzone-launcher-0.1.6-android.apk`), the Steam Deck launcher made for
+  touch. It shows only the games that run on Android (for now Baba Is You,
+  baba-port), installs and updates them (checked against the release's
+  SHA256SUMS, confirmed in Android's installer), starts them, hosts and joins
+  rooms, takes codes and invite links, sends feedback, reports its own
+  crashes and updates itself.
+- Descriptors: platform `android` in `install.assets` (an APK) and
+  `launch.exec.android` (the package name). The server lists Android
+  downloads on the website.
+- Games: `--warpzone-code <CODE>` joins a private game by its code
+  (`wz_handle_launch`, `launch::from_args`); on Android the launcher's
+  arguments arrive as the intent extra `warpzone.args`.
+
 ## 0.1.5
 
 - Launcher: updates itself everywhere, always. It checks at start and every

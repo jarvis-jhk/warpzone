@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The rings of site/logo.svg, scaled into the adaptive icon's safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="256" android:viewportHeight="256">
+    <group android:scaleX="0.62" android:scaleY="0.62" android:pivotX="128" android:pivotY="128">
+        <path android:strokeColor="#7c5cff" android:strokeAlpha="0.35" android:strokeWidth="10"
+            android:pathData="M36,128a92,92 0,1 0,184 0a92,92 0,1 0,-184 0" />
+        <path android:strokeColor="#6f7cf8" android:strokeAlpha="0.55" android:strokeWidth="10"
+            android:pathData="M58,128a70,70 0,1 0,140 0a70,70 0,1 0,-140 0" />
+        <path android:strokeColor="#4fa5f0" android:strokeAlpha="0.8" android:strokeWidth="10"
+            android:pathData="M80,128a48,48 0,1 0,96 0a48,48 0,1 0,-96 0" />
+        <path android:strokeColor="#22d3ee" android:strokeWidth="9"
+            android:pathData="M101,128a27,27 0,1 0,54 0a27,27 0,1 0,-54 0" />
+        <path android:fillColor="#d9d0ff"
+            android:pathData="M112,128a16,16 0,1 0,32 0a16,16 0,1 0,-32 0" />
+        <path android:strokeColor="#e8e8f4" android:strokeAlpha="0.85" android:strokeWidth="7" android:strokeLineCap="round"
+            android:pathData="M52,66L96,110M204,66L160,110M52,190L96,146M204,190L160,146" />
+    </group>
+</vector>

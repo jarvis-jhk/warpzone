@@ -189,6 +189,40 @@ downloads the newest launcher AppImage into `~/Applications/Warpzone.AppImage`
 Steam shortcut with artwork, closing Steam for that moment — and offers to go
 back to Game Mode. Running it again updates both.
 
+## Android
+
+A light launcher of its own for Android phones and tablets
+(`warpzone-launcher-<version>-android.apk` on the releases; source in
+[`android/`](../android), plain Java without libraries, about 60 KB). It is
+the Deck launcher made for touch: the same dark look, portrait SteamGridDB
+tiles with player counts and state, a game page with Install / Update / Play
+/ Host online, the game's open rooms, its game files and what's new, a Rooms
+tab (public rooms of every Android game, join by code or invite link), a
+Feedback tab and Settings. It shows **only games with an Android build**
+(`install.assets.android` in the descriptor).
+
+* Installing: it downloads the release's APK, checks it against the
+  release's `SHA256SUMS` on GitHub and hands it to Android's package
+  installer (Android asks once whether Warpzone may install apps, then
+  confirms every install). Installed version and updates come from the
+  package named by `launch.exec.android`.
+* Joining: it starts the game with `warpzone.args` (see
+  [integration](integration.md#android)). It has no account, so codes and
+  invite secrets go to the game, which joins with its own identity.
+* Invite links (`warpzone://join/…`, `https://<server>/join/…`) open in it.
+* It updates itself: at start and every 30 minutes it asks the server for
+  the launcher's newest release (`/games/launcher/updates`) and offers the
+  APK (`android` in the server's `[launcher] assets`).
+* Its own crashes are reported to the server's feedback API on the next
+  start (game `warpzone`, kind `crash`; *Settings* turns it off).
+
+Build: `tools/fetch-android.sh` (JDK 17, Android build-tools 35 and
+platform 35 into `.toolchain/android`), then `android/build.sh` →
+`dist/warpzone-launcher-<version>-android[-debugkey].apk`. Releases are
+signed in CI with the release key (secrets `WZ_ANDROID_KEYSTORE_B64`,
+`WZ_ANDROID_KS_PASS`). Settings accepts `http://10.0.2.2:2998` for a
+`dev/server.toml` server on the emulator's host.
+
 ## Headless screenshots
 
 ```sh

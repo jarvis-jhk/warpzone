@@ -31,7 +31,7 @@ pub fn esc(s: &str) -> String {
 }
 
 const PLATFORMS: &[(&str, &str)] =
-    &[("appimage", "Linux AppImage"), ("linux", "Linux"), ("windows", "Windows"), ("deck", "Steam Deck"), ("portmaster", "PortMaster")];
+    &[("appimage", "Linux AppImage"), ("linux", "Linux"), ("windows", "Windows"), ("deck", "Steam Deck"), ("portmaster", "PortMaster"), ("android", "Android")];
 
 fn platform_label(p: &str) -> &str {
     PLATFORMS.iter().find(|(k, _)| *k == p).map(|(_, v)| *v).unwrap_or(p)
@@ -336,7 +336,7 @@ pub async fn index(State(state): State<AppState>) -> Html<String> {
 <div class="panel"><h3>Compete and create</h3><p>Optional ranked queues with quarterly seasons and leaderboards. Mods sync automatically when you join a modded room.</p></div>
 </div></section>
 
-<section id="launcher"><h2>Warpzone launcher</h2><p class="sub">One small app for every Warpzone game: install and update games, browse rooms of all games without launching them, join with one click, manage mods. Linux, Windows and Steam Deck.</p>
+<section id="launcher"><h2>Warpzone launcher</h2><p class="sub">One small app for every Warpzone game: install and update games, browse rooms of all games without launching them, join with one click, manage mods. Linux, Windows and Steam Deck, and for Android with the games that run there.</p>
 <div class="panel">{launcher}</div></section>
 
 <section id="selfhost"><h2>Run your own ecosystem</h2><p class="sub">Everything here — server, library, launcher — is open source. Run your own instance for your own games with one container.</p>

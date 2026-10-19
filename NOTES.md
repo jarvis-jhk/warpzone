@@ -1,5 +1,29 @@
 # Notes
 
+- 2026-10-19 (request t_mvf4iqge2m9tv, Jan: "add an android launcher to
+  warpzone releases ... feels like a touch version of the steam deck version
+  and only shows games that work in Android (currently only baba)"):
+  RELEASED v0.1.6 with `warpzone-launcher-0.1.6-android.apk`. android/ is
+  plain Java, no libraries, no Gradle (aapt2/javac/d8/apksigner; toolchain
+  via tools/fetch-android.sh into .toolchain/android). Package
+  io.virtualtabletop.warpzone, minSdk 26, targetSdk 34, versionCode =
+  major*1e6+minor*1e3+patch. RELEASE KEY: .toolchain/android/release/
+  (warpzone-release.jks + password, RSA 3072, alias warpzone, SHA-256
+  EA:2D:C0:26:...:19:B8) — the only readable copy; GitHub secrets
+  WZ_ANDROID_KEYSTORE_B64 / WZ_ANDROID_KS_PASS (set with libsodium sealed
+  box via the API) sign the release in CI. Losing it means players must
+  uninstall to update. Server: platform `android` allowed (0.1.6+; vtt
+  needs 0.1.6 before any descriptor carries it), launch.exec.android = the
+  package. Core: `--warpzone-code`; Android games get `warpzone.args`.
+  Tested on an API 30 x86_64 emulator in the container (TCG, no KVM; libnss3
+  from Debian debs in .toolchain/emulibs) against a local server with baba's
+  descriptor + android: library with SGDB tile, game page, download + SHA-256
+  check + Android's confirm dialog (install itself fails there: baba is
+  arm64-only), rooms, feedback (arrived in the server DB), landscape. Not
+  tested: starting/joining an installed game (no arm device in this lane's
+  gateway scope). Asked baba-port lane to read `warpzone.args` (+ code) and
+  to add android to its descriptor.
+
 - 2026-10-19 (request t_mvf2g738gp1g8, Jan: "assuming the launcher updates
   itself automatically everywhere; if not, make it"): it did not quite —
   self-update ran only at start and only with the games' auto_update on, so

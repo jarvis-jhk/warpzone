@@ -20,7 +20,7 @@ and mod site, they share one:
 |---|---|
 | **`warpzone-server`** | One Rust daemon (≈5 MB, ≈20 MB RAM) serving every game: accounts, rooms, STUN, hole-punch coordination, an encrypted-traffic relay, matchmaking with OpenSkill ratings and calendar seasons, leaderboards, a Factorio-style mod archive with moderation, release/changelog info and the website. |
 | **`libwarpzone`** | The client library games link (a C ABI, static libraries for Linux x86_64/aarch64 and Windows; no Rust toolchain needed). Rooms, private games, peer-to-peer channels (unreliable and reliable), matchmaking, scores, update checks, mod sync. |
-| **`warpzone`** (launcher) | A small desktop app for Linux, Windows and the Steam Deck: installs and updates every game in one click, finds the original game files you already own, browses open rooms of all games without starting them, manages mods, adds games to Steam with full artwork. Never required: every game works on its own. |
+| **`warpzone`** (launcher) | A small desktop app for Linux, Windows and the Steam Deck (and a light touch version for Android, showing the games that run there): installs and updates every game in one click, finds the original game files you already own, browses open rooms of all games without starting them, manages mods, adds games to Steam with full artwork. Never required: every game works on its own. |
 | **`wz`** | Command-line tool for players, mod authors, moderators and operators — including network diagnostics. |
 
 Games integrate as much as they want ([tiers](docs/integration.md#tiers)):

@@ -6,9 +6,15 @@
 //!   The launcher has already joined it with the same shared identity, so the
 //!   game's join succeeds without a code.
 //! * `--warpzone-host`: open the game's own host screen.
+//! * `--warpzone-code <CODE>`: join a private game by its 6-letter code (the
+//!   Android launcher has no account of its own, so it cannot look the code
+//!   up first and hands it to the game). Together with `--warpzone-join` it
+//!   is the code for that room (a listed room that wants its code).
 //!
 //! and sets `WARPZONE_LAUNCHED=1` and `WARPZONE_SERVER`. The environment
-//! variables `WARPZONE_JOIN=<room>` and `WARPZONE_HOST=1` work too.
+//! variables `WARPZONE_JOIN=<room>` and `WARPZONE_HOST=1` work too. On
+//! Android the same arguments arrive as the string-array extra
+//! `warpzone.args` of the launch intent.
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Intent {
@@ -16,6 +22,8 @@ pub struct Intent {
     pub secret: Option<String>,
     pub host: bool,
     pub launched: bool,
+    /// A private game's code (`--warpzone-code`), normalised.
+    pub code: Option<String>,
 }
 
 /// Read the intent from command-line arguments and the environment.
@@ -29,6 +37,10 @@ pub fn from_args<S: AsRef<str>>(args: &[S]) -> Intent {
             i.join = Some(v.into());
         } else if a == "--warpzone-host" {
             i.host = true;
+        } else if a == "--warpzone-code" {
+            i.code = it.next().map(warpzone_protocol::names::normalize_code).filter(|c| !c.is_empty());
+        } else if let Some(v) = a.strip_prefix("--warpzone-code=") {
+            i.code = Some(warpzone_protocol::names::normalize_code(v)).filter(|c| !c.is_empty());
         } else if let Some((room, secret)) = parse_invite(a) {
             i.join = Some(room);
             i.secret = secret;
@@ -82,5 +94,7 @@ mod tests {
         assert!(i.host);
         let i = from_args(&["game", "--warpzone-join=warpzone://join/r2#sec"]);
         assert_eq!((i.join.as_deref(), i.secret.as_deref()), (Some("r2"), Some("sec")));
+        let i = from_args(&["game", "--warpzone-code", "k7qm3x"]);
+        assert_eq!((i.join, i.code.as_deref()), (None, Some("K7QM3X")));
     }
 }

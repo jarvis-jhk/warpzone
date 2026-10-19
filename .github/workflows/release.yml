@@ -97,8 +97,32 @@ jobs:
           name: windows
           path: dist/*
 
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .toolchain/android/downloads
+          key: android-toolchain-${{ hashFiles('tools/fetch-android.sh') }}
+      - name: Build the Android launcher (release key)
+        env:
+          WZ_ANDROID_KEYSTORE_B64: ${{ secrets.WZ_ANDROID_KEYSTORE_B64 }}
+          WZ_ANDROID_KS_PASS: ${{ secrets.WZ_ANDROID_KS_PASS }}
+        run: |
+          set -eu
+          tools/fetch-android.sh
+          [ -n "$WZ_ANDROID_KEYSTORE_B64" ] || { echo "release key secrets missing" >&2; exit 1; }
+          echo "$WZ_ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          WZ_VERSION=${GITHUB_REF_NAME#v} WZ_ANDROID_KEYSTORE="$RUNNER_TEMP/release.jks" JAVA_HOME= ANDROID_HOME= android/build.sh
+          rm -f "$RUNNER_TEMP/release.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*.apk
+
   publish:
-    needs: [linux, windows]
+    needs: [linux, windows, android]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
