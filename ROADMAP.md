@@ -42,6 +42,14 @@ Order is priority. Done items move to the [changelog](CHANGELOG.md).
 7. **Automated pre-review of mod submissions** (a reviewer key adds notes:
    file listing, executables, likely copyrighted content) — decisions stay
    with the human moderator.
+8. **Sync across a player's devices**: settings, progress and savegames
+   follow the same player from device to device. The devices of one player
+   are linked into one identity by exchanging a code (no passwords or
+   e-mail; each device keeps its own key). Settings and progress sync for
+   everyone; savegames only with the account's permission (storage quota
+   per account, later a Patreon tier). A small per-game key/value and blob
+   API in `libwarpzone` and `wz`, last-writer-wins with conflict copies for
+   savegames. (Jan, 2026-10-19)
 
 ## Next
 
