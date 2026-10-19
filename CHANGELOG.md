@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.9
+
+Launcher, from Steam Deck testing:
+
+- Scrolling is instant: the page jumps to the control the D-pad focused
+  instead of gliding there.
+- The D-pad no longer climbs up from the games to *Installed* / *All games*
+  (X switches between them) or *Refresh* (LT).
+- The dark shade at the bottom of a tile reaches its edge: depending on where
+  the tile fell on the screen's pixels, a bright line of the artwork could
+  show under it.
+
+Android launcher:
+
+- **Player name and linking** in *Settings*: choose a player name, or enter a
+  link code from another device to play as that player there (and get a link
+  code for the next device). The name shows top right.
+- Games started from it play as that player: they get the launcher's key
+  (`warpzone.identity`; games call `launch::adopt_identity` /
+  `wz_adopt_identity`, see docs/integration.md).
+
 ## 0.1.8
 
 - Android launcher: installing a game no longer loses track of it when the

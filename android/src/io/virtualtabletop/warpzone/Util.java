@@ -32,9 +32,26 @@ final class Util {
             int n;
             while ((n = in.read(buf)) > 0) md.update(buf, 0, n);
         }
+        return hex(md.digest());
+    }
+
+    static String hex(byte[] b) {
         StringBuilder sb = new StringBuilder();
-        for (byte b : md.digest()) sb.append(String.format("%02x", b));
+        for (byte x : b) sb.append(String.format("%02x", x));
         return sb.toString();
+    }
+
+    /** Hex to bytes, or null when it is not hex. */
+    static byte[] unhex(String s) {
+        s = s.trim();
+        if (s.length() % 2 != 0) return null;
+        byte[] b = new byte[s.length() / 2];
+        for (int i = 0; i < b.length; i++) {
+            int hi = Character.digit(s.charAt(2 * i), 16), lo = Character.digit(s.charAt(2 * i + 1), 16);
+            if (hi < 0 || lo < 0) return null;
+            b[i] = (byte) (hi * 16 + lo);
+        }
+        return b;
     }
 
     /** The hash a `sha256sum` file lists for `name`, or null. */

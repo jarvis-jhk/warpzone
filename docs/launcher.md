@@ -206,9 +206,14 @@ Feedback tab and Settings. It shows **only games with an Android build**
   installer (Android asks once whether Warpzone may install apps, then
   confirms every install). Installed version and updates come from the
   package named by `launch.exec.android`.
+* Player: *Settings* chooses the player name or links the device to the
+  player of another device with a link code (and shows one for the next
+  device); the name shows top right. Its key is Ed25519 like the desktop's
+  (`identity.key` in the app's files); once it has a name it goes to every
+  game started from here (`warpzone.identity`), so they play as that player.
 * Joining: it starts the game with `warpzone.args` (see
-  [integration](integration.md#android)). It has no account, so codes and
-  invite secrets go to the game, which joins with its own identity.
+  [integration](integration.md#android)). Codes and invite secrets go to the
+  game, which joins the room itself.
 * Invite links (`warpzone://join/…`, `https://<server>/join/…`) open in it.
 * It updates itself: at start and every 30 minutes it asks the server for
   the launcher's newest release (`/games/launcher/updates`) and offers the

@@ -114,6 +114,9 @@ final class Game {
         }
         i.putExtra("warpzone.launched", true);
         i.putExtra("warpzone.server", WzApp.server());
+        // The player's key, as desktop games share identity.key: once it has
+        // a name, every game plays as that player (launch::adopt_identity).
+        if (Api.account != null) i.putExtra("warpzone.identity", Identity.get().seedHex());
         return i;
     }
 

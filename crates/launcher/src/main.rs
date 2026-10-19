@@ -163,6 +163,8 @@ fn main() {
                         ("library-pad".into(), app::Tab::Library, None, false),
                         // Down to the row below the screen: it scrolls into view.
                         ("library-down".into(), app::Tab::Library, None, false),
+                        // Up from the first row: the focus stays in the grid (not on the filter).
+                        ("library-up".into(), app::Tab::Library, None, false),
                         ("game-page".into(), app::Tab::Library, first.or(Some("funny-furries".into())), false),
                         ("rooms".into(), app::Tab::Rooms, None, false),
                         // Rooms moved through with the D-pad (it stays on the page).

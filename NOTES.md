@@ -1,5 +1,26 @@
 # Notes
 
+- 2026-10-19 (requests t_mvfj9piaafteb, t_mvfjbczncgs7h, t_mvfjfeafd41kf,
+  Jan's Deck + Android tests): RELEASED v0.1.9 (launcher/core/capi; server
+  unchanged, vtt not redeployed). Deck: style.scroll_animation
+  = none; library filter buttons and Refresh are Sense::CLICK only (not
+  focusable, so the D-pad never goes up to them; X/LT do it). Tile shade was
+  a raw Mesh, which is not pixel-snapped while the artwork (RectShape) is
+  (tessellator round_rects_to_pixels): at some fractional positions the
+  artwork's last row stuck out below the shade. Now the shade is an Image of
+  a 1x2 gradient texture with the same corner radius, so both snap alike
+  (not reproduced in Xvfb shots: the app picks its own zoom, positions came
+  out integral). Android: own Ed25519 identity (Ed25519.java, BigInteger
+  RFC 8032 reference, checked against RFC vectors 1+2, ~5 ms/sig on JVM),
+  identity.key in app files, Api.login/register/linkCode/link, Settings
+  "Player" section, name top right. Once it has an account it passes extra
+  `warpzone.identity` (hex seed) to games; core `launch::adopt_identity`
+  (C `wz_adopt_identity`) writes it, old key -> identity.key.old. Emulator
+  (API 30, TCG, needs ANDROID_I_WANT_MY_TCG=yes) vs local server: claim
+  name, link code redeemed by `wz link`, and `wz link-code` redeemed on the
+  emulator all worked. Not tested: a game adopting the key (no Android game
+  in dev). Asked baba-port to adopt it (t_mvfk1dgegd8l4).
+
 - 2026-10-19 (request t_mvficftd89g0q, Jan: "Warpzone bugfix on the laptop.
   Check it and make a release if it's valid"): the uncommitted fix was
   valid. Installer callbacks held the Game `g` captured at tap time, but

@@ -330,10 +330,25 @@ fn style(ctx: &egui::Context) {
     ctx.all_styles_mut(|s| {
         s.spacing.button_padding = Vec2::new(12.0, 6.0);
         s.spacing.item_spacing = Vec2::new(10.0, 8.0);
+        // The D-pad's focus jumps the page at once: a glide behind it feels laggy.
+        s.scroll_animation = egui::style::ScrollAnimation::none();
         s.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(15.0));
         s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(15.0));
         s.text_styles.insert(egui::TextStyle::Heading, egui::FontId::new(26.0, egui::FontFamily::Name("display".into())));
     });
+}
+
+/// Two texels, clear above and dark below: stretched with linear filtering
+/// (uv 0.25..0.75, texel centre to centre) it is a vertical gradient.
+fn shade_texture(ctx: &egui::Context) -> TextureHandle {
+    let key = egui::Id::unique("tile-shade");
+    if let Some(t) = ctx.data(|d| d.get_temp::<TextureHandle>(key)) {
+        return t;
+    }
+    let img = egui::ColorImage::from_rgba_unmultiplied([1, 2], &[0, 0, 0, 0, 0, 0, 0, 200]);
+    let t = ctx.load_texture("tile-shade", img, TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(key, t.clone()));
+    t
 }
 
 pub fn display(size: f32) -> egui::FontId {
@@ -1888,9 +1903,11 @@ impl App {
             if installed > 0 {
                 ui.add_space(12.0);
                 // The filter: installed games only, or everything there is to install.
+                // Not focusable, so the D-pad never climbs up to it (X toggles it).
                 for (all, label) in [(false, format!("Installed ({installed})")), (true, format!("All games ({total})"))] {
                     let sel = self.settings.show_all_games == all;
-                    if ui.add(egui::Button::selectable(sel, RichText::new(label).size(15.0)).corner_radius(CornerRadius::same(8))).clicked() && !sel {
+                    let b = egui::Button::selectable(sel, RichText::new(label).size(15.0)).corner_radius(CornerRadius::same(8)).sense(egui::Sense::CLICK);
+                    if ui.add(b).clicked() && !sel {
                         toggle = true;
                     }
                 }
@@ -1906,7 +1923,8 @@ impl App {
                 if pad {
                     crate::pad::glyph(ui, Glyph::Lt, 20.0);
                 }
-                if ui.button("Refresh").clicked() {
+                // LT refreshes: the D-pad does not go up here either.
+                if ui.add(egui::Button::new("Refresh").sense(egui::Sense::CLICK)).clicked() {
                     self.refresh_catalog();
                 }
             });
@@ -2018,17 +2036,16 @@ impl App {
                 p.text(rect.center(), egui::Align2::CENTER_CENTER, &g.desc.name, egui::FontId::proportional(15.0), MUTED);
             }
         }
-        // Shade under the icons so they read on any artwork.
+        // Shade under the icons so they read on any artwork. Painted like the
+        // artwork (an image with the same round corners), so its edges get the
+        // same anti-aliasing: a plain mesh left the artwork's soft bottom edge
+        // uncovered, a bright line under the shade.
         let band = 40.0;
         let shade = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.bottom() - band), rect.max);
-        let mut mesh = egui::Mesh::default();
-        let (top, bottom) = (Color32::TRANSPARENT, Color32::from_black_alpha(200));
-        for (pos, c) in [(shade.left_top(), top), (shade.right_top(), top), (shade.right_bottom(), bottom), (shade.left_bottom(), bottom)] {
-            mesh.colored_vertex(pos, c);
-        }
-        mesh.add_triangle(0, 1, 2);
-        mesh.add_triangle(0, 2, 3);
-        p.add(mesh);
+        egui::Image::new(&shade_texture(ui.ctx()))
+            .uv(egui::Rect::from_min_max(egui::pos2(0.0, 0.25), egui::pos2(1.0, 0.75)))
+            .corner_radius(CornerRadius { nw: 0, ne: 0, sw: 12, se: 12 })
+            .paint_at(ui, shade);
         let c = g.desc.capabilities();
         let mut x = rect.left() + 9.0;
         let y = rect.bottom() - 15.0;
@@ -3444,6 +3461,7 @@ impl App {
                 "art-picker" => vec![Right, Right, Down],
                 "rooms-pad" => vec![Down, Down, Down, Right],
                 "library-down" => vec![Down, Down, Down],
+                "library-up" => vec![Right, Up, Up],
                 _ => Vec::new(),
             };
             if !self.pad.script.is_empty() {

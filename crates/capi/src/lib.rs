@@ -276,6 +276,14 @@ pub unsafe extern "C" fn wz_handle_launch(c: *mut WzClient, argc: c_int, argv: *
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn wz_adopt_identity(seed_hex: *const c_char) -> c_int {
+    match unsafe { s(seed_hex) }.map(warpzone_core::launch::adopt_identity) {
+        Some(Ok(changed)) => changed as c_int,
+        _ => -1,
+    }
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wz_answer_knock(c: *mut WzClient, knock: *const c_char, accept: c_int) {
     let c = client!(c);
     if let Some(k) = unsafe { s(knock) } {

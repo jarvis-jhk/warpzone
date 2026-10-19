@@ -80,6 +80,9 @@ public class MainActivity extends Activity {
     // Feedback form, kept across re-renders.
     private String fbGame = "warpzone", fbKind = "bug", fbTitle = "", fbDetail = "", fbStatus;
     private String codeInput = "";
+    // Player name and link code (Settings), kept across re-renders.
+    private String nameInput = "", linkInput = "", linkCode, accountBusy;
+    private TextView who;
     private final Map<String, Integer> scrollPos = new HashMap<>();
     private String shown = "";
 
@@ -98,6 +101,15 @@ public class MainActivity extends Activity {
         word.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
         word.setLetterSpacing(0.04f);
         top.addView(word, Ui.weight(1));
+        // Who plays: the player name, or the way to choose one.
+        who = Ui.text("", 14, Ui.TEXT);
+        who.setPadding(Ui.dp(8), Ui.dp(4), Ui.dp(10), Ui.dp(4));
+        who.setOnClickListener(v -> {
+            tab = Tab.SETTINGS;
+            page = null;
+            render();
+        });
+        top.addView(who, Ui.wrap());
         status = Ui.text("", 13, Ui.OK);
         top.addView(status, Ui.wrap());
         root.addView(top, Ui.fill());
@@ -122,6 +134,7 @@ public class MainActivity extends Activity {
 
         readCache();
         loadGames();
+        login();
         handle(getIntent());
         render();
     }
@@ -592,9 +605,79 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Log the device key in (in the background) to learn its player name. */
+    private void login() {
+        WzApp.pool.execute(() -> {
+            try {
+                Api.login();
+            } catch (Exception e) {
+                if (!(e instanceof java.io.IOException)) WzApp.reportBug("login", e);
+            }
+            WzApp.runOnMain(this::renderIfIdle);
+        });
+    }
+
+    /** Claim a name or redeem a link code (Settings), in the background. */
+    private void account(final boolean link, final String input) {
+        if (accountBusy != null || input.trim().isEmpty()) return;
+        accountBusy = link ? "Linking…" : "Choosing…";
+        render();
+        WzApp.pool.execute(() -> {
+            String err = null;
+            try {
+                if (link) Api.link(input);
+                else Api.register(input.trim());
+            } catch (Api.HttpError e) {
+                err = e.getMessage();
+            } catch (java.io.IOException e) {
+                err = "Cannot reach the server";
+            } catch (Exception e) {
+                err = e.getMessage();
+                WzApp.reportBug(link ? "link device" : "choose name", e);
+            }
+            final String error = err;
+            WzApp.runOnMain(() -> {
+                accountBusy = null;
+                if (error != null) toast(error);
+                else {
+                    nameInput = linkInput = "";
+                    toast("Playing as " + Api.account.optString("username"));
+                }
+                render();
+            });
+        });
+    }
+
+    private void getLinkCode() {
+        if (accountBusy != null) return;
+        accountBusy = "…";
+        render();
+        WzApp.pool.execute(() -> {
+            String code = null, err = null;
+            try {
+                code = Api.linkCode();
+            } catch (java.io.IOException e) {
+                err = e instanceof Api.HttpError ? e.getMessage() : "Cannot reach the server";
+            } catch (Exception e) {
+                err = e.getMessage();
+                WzApp.reportBug("link code", e);
+            }
+            final String c = code, error = err;
+            WzApp.runOnMain(() -> {
+                accountBusy = null;
+                linkCode = c;
+                if (error != null) toast(error);
+                render();
+            });
+        });
+    }
+
     void render() {
         if (isFinishing()) return;
         Ui.ctx = this;
+        JSONObject acc = Api.account;
+        who.setText(acc != null ? acc.optString("username") : Api.loggedIn ? "Choose a player name" : "");
+        who.setTextColor(acc != null ? Ui.TEXT : Ui.ACCENT);
         status.setText(online ? "online" : "offline");
         status.setTextColor(online ? Ui.OK : Ui.WARN);
         showBanner();
@@ -1029,6 +1112,8 @@ public class MainActivity extends Activity {
     private void settingsPage(LinearLayout body) {
         header(body, "Settings", false);
 
+        playerSection(body);
+
         body.addView(Ui.section("Server"), Ui.fill());
         LinearLayout r = Ui.row();
         final EditText srv = Ui.field(WzApp.DEFAULT_SERVER, false);
@@ -1043,6 +1128,9 @@ public class MainActivity extends Activity {
                 return;
             }
             WzApp.app.prefs.edit().putString("server", s).apply();
+            Api.serverChanged();
+            linkCode = null;
+            login();
             games.clear();
             rooms.clear();
             changelogs.clear();
@@ -1089,6 +1177,58 @@ public class MainActivity extends Activity {
         TextView about = Ui.text("Open source (MIT OR Apache-2.0). Tile art from SteamGridDB, by its community.", 13, Ui.DIM);
         about.setPadding(0, Ui.dp(12), 0, 0);
         body.addView(about, Ui.fill());
+    }
+
+    /** The player: this device's name, or choosing one, or linking to another device's player. */
+    private void playerSection(LinearLayout body) {
+        body.addView(Ui.section("Player"), Ui.fill());
+        body.addView(Ui.text("No password and no e-mail: this device's key is your login. Games started from here "
+                + "play as this player. A link code makes another device play as the same player.", 14, Ui.MUTED), Ui.fill());
+        JSONObject acc = Api.account;
+        if (!Api.loggedIn) {
+            body.addView(Ui.text(online ? "Connecting…" : "Cannot reach the server.", 15, Ui.TEXT), withTop(Ui.fill(), 8));
+            return;
+        }
+        if (acc != null) {
+            body.addView(Ui.text("Playing as " + acc.optString("username"), 16, Ui.TEXT), withTop(Ui.fill(), 8));
+            LinearLayout r = Ui.row();
+            TextView b = Ui.button("Get a link code", false, v -> getLinkCode());
+            Ui.enable(b, accountBusy == null);
+            Ui.add(r, b, Ui.wrap(), 12, 0);
+            if (linkCode != null) {
+                TextView c = Ui.text(linkCode, 20, Ui.ACCENT);
+                c.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+                c.setTextIsSelectable(true);
+                r.addView(c, Ui.wrap());
+            }
+            body.addView(r, withTop(Ui.fill(), 8));
+            if (linkCode != null) {
+                body.addView(Ui.text("Valid 10 minutes. Enter it on the other device: Settings, “Link this device”.", 13, Ui.MUTED),
+                        withTop(Ui.fill(), 4));
+            }
+            return;
+        }
+        LinearLayout r = Ui.row();
+        final EditText name = Ui.field("player name (3–16 letters, digits, _ -)", false);
+        name.setText(nameInput);
+        name.addTextChangedListener(new Watch(t -> nameInput = t));
+        Ui.add(r, name, Ui.weight(1), 10, 0);
+        TextView choose = Ui.button(accountBusy != null ? accountBusy : "Choose", true, v -> account(false, nameInput));
+        Ui.enable(choose, accountBusy == null);
+        r.addView(choose, Ui.wrap());
+        body.addView(r, withTop(Ui.fill(), 8));
+        body.addView(Ui.text("Or play as the player of another device: there, get a link code in Settings and enter it here.",
+                14, Ui.MUTED), withTop(Ui.fill(), 10));
+        LinearLayout l = Ui.row();
+        final EditText code = Ui.field("link code", false);
+        code.setText(linkInput);
+        code.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        code.addTextChangedListener(new Watch(t -> linkInput = t));
+        Ui.add(l, code, Ui.weight(1), 10, 0);
+        TextView link = Ui.button("Link this device", false, v -> account(true, linkInput));
+        Ui.enable(link, accountBusy == null);
+        l.addView(link, Ui.wrap());
+        body.addView(l, withTop(Ui.fill(), 6));
     }
 
     private static LinearLayout.LayoutParams withTop(LinearLayout.LayoutParams lp, int dp) {

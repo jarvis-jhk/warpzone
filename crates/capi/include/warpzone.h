@@ -135,6 +135,11 @@ void wz_join_code(wz_client *c, const char *code);
  * host screen (open it and call wz_host), 0 otherwise. */
 int wz_handle_launch(wz_client *c, int argc, const char *const *argv);
 
+/* Android: the launcher's `warpzone.identity` extra (hex). Call before wz_create so the
+ * game plays as the player chosen in the launcher. Returns 1 if the key changed, 0 if it
+ * was already this one, -1 on error. */
+int wz_adopt_identity(const char *seed_hex);
+
 void wz_answer_knock(wz_client *c, const char *knock, int accept);
 
 /* Host: replace the metadata shown in browsers (JSON object of strings). */

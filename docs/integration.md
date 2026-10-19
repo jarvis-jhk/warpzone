@@ -168,8 +168,16 @@ plus `warpzone.launched` (boolean) and `warpzone.server` (string). Read them
 in `onCreate` and `onNewIntent` (the launcher adds `FLAG_ACTIVITY_CLEAR_TOP`
 when it passes arguments, so a running game is restarted into the room) and
 hand them to `wz_handle_launch` or `warpzone_core::launch::from_args`. The
-Android launcher has no account of its own: it has not joined the room
-first, so a private room needs its code or invite link, which it passes on.
+Android launcher does not join the room first, so a private room needs its
+code or invite link, which it passes on.
+
+Once the player has chosen a name (or linked the device) in the Android
+launcher, it also passes its device key as the string extra
+**`warpzone.identity`** (hex seed): hand it to
+`warpzone_core::launch::adopt_identity` (C: `wz_adopt_identity`) **before**
+creating the client, so the game plays as that player — on the desktop, all
+games share one identity file anyway. A different key the game had is kept
+as `identity.key.old`.
 Name the package in the descriptor (`launch.exec.android`) and publish the
 APK with the release (`install.assets.android`), listed in the release's
 `SHA256SUMS`: the launcher installs nothing it cannot check.

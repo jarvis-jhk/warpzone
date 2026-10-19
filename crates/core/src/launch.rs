@@ -14,7 +14,11 @@
 //! and sets `WARPZONE_LAUNCHED=1` and `WARPZONE_SERVER`. The environment
 //! variables `WARPZONE_JOIN=<room>` and `WARPZONE_HOST=1` work too. On
 //! Android the same arguments arrive as the string-array extra
-//! `warpzone.args` of the launch intent.
+//! `warpzone.args` of the launch intent. Once the player has a name there,
+//! the Android launcher also passes its key as the string extra
+//! `warpzone.identity`: give it to [`adopt_identity`] before creating the
+//! client, so every Android game plays as that player (on the desktop all
+//! games read the one shared identity file anyway).
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Intent {
@@ -65,6 +69,36 @@ pub fn from_args<S: AsRef<str>>(args: &[S]) -> Intent {
     i
 }
 
+/// Make `seed_hex` (the `warpzone.identity` extra of the Android launcher)
+/// this game's identity: written to the identity file unless it is already
+/// the one there. A different key that was there is kept as
+/// `identity.key.old`. Returns whether the key changed; call it before the
+/// client is created, which reads the identity once.
+pub fn adopt_identity(seed_hex: &str) -> std::io::Result<bool> {
+    adopt_identity_at(&crate::paths::identity_file(), seed_hex)
+}
+
+fn adopt_identity_at(path: &std::path::Path, seed_hex: &str) -> std::io::Result<bool> {
+    let seed: [u8; 32] = hex::decode(seed_hex.trim())
+        .ok()
+        .and_then(|v| v.try_into().ok())
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a Warpzone identity"))?;
+    let new = crate::identity::Identity::from_seed(seed);
+    if let Ok(old) = std::fs::read_to_string(path) {
+        if old.trim().eq_ignore_ascii_case(seed_hex.trim()) {
+            return Ok(false);
+        }
+        let mut keep = path.as_os_str().to_owned();
+        keep.push(".old");
+        std::fs::rename(path, keep)?;
+    }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    new.save(path)?;
+    Ok(true)
+}
+
 /// `warpzone://join/<room>#<secret>` or `https://<host>/join/<room>#<secret>`.
 pub fn parse_invite(s: &str) -> Option<(String, Option<String>)> {
     let rest = s.strip_prefix("warpzone://join/").or_else(|| s.split_once("://").and_then(|(_, r)| r.split_once("/join/").map(|(_, r)| r)))?;
@@ -85,6 +119,21 @@ mod tests {
         assert_eq!(parse_invite("warpzone://join/ab12cd#s3"), Some(("ab12cd".into(), Some("s3".into()))));
         assert_eq!(parse_invite("https://warpzone.example.org/join/ab12cd"), Some(("ab12cd".into(), None)));
         assert_eq!(parse_invite("warpzone://join/../x"), None);
+    }
+
+    #[test]
+    fn adopts_the_launchers_identity() {
+        let dir = std::env::temp_dir().join(format!("wz-adopt-{}", std::process::id()));
+        let p = dir.join("identity.key");
+        let own = crate::identity::Identity::load_or_create(&p).unwrap();
+        let seed = "11".repeat(32);
+        assert!(adopt_identity_at(&p, &seed).unwrap());
+        assert!(!adopt_identity_at(&p, &seed).unwrap());
+        assert_eq!(crate::identity::Identity::load_or_create(&p).unwrap().public_hex(), crate::identity::Identity::from_seed([0x11; 32]).public_hex());
+        let old = crate::identity::Identity::load_or_create(&dir.join("identity.key.old")).unwrap();
+        assert_eq!(old.public_hex(), own.public_hex());
+        assert!(adopt_identity_at(&p, "nope").is_err());
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

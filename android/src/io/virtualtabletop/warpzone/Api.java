@@ -15,7 +15,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
-/** The few parts of the Warpzone HTTP API (docs/api.md) the Android launcher needs; none needs an account. */
+/** The few parts of the Warpzone HTTP API (docs/api.md) the Android launcher needs. */
 final class Api {
     private Api() {
     }
@@ -67,7 +67,12 @@ final class Api {
     }
 
     static Object post(String url, JSONObject body) throws IOException, JSONException {
+        return post(url, body, null);
+    }
+
+    private static Object post(String url, JSONObject body, String token) throws IOException, JSONException {
         HttpURLConnection c = open(url);
+        if (token != null) c.setRequestProperty("Authorization", "Bearer " + token);
         c.setRequestMethod("POST");
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
@@ -144,6 +149,76 @@ final class Api {
         o.put("version", Util.cut(WzApp.app.version, 40));
         o.put("client", Util.cut(WzApp.client(), 120));
         post(api("/feedback"), o);
+    }
+
+    // ------------------------------------------------------------ account
+
+    private static String token;
+    private static String tokenServer;
+    /** The account of this device's key as of the last login; null = no name yet. */
+    static volatile JSONObject account;
+    static volatile boolean loggedIn;
+
+    /** Log in with the device key (challenge, signature, token); returns the account or null. */
+    static synchronized JSONObject login() throws IOException, JSONException {
+        Identity id = Identity.get();
+        JSONObject info = (JSONObject) get(api("/info"));
+        JSONObject ch = (JSONObject) post(api("/auth/challenge"), new JSONObject().put("key", id.publicHex));
+        String nonce = ch.getString("nonce");
+        byte[] msg = ("warpzone-login-v1\n" + info.getString("server_key") + "\n" + nonce).getBytes(StandardCharsets.UTF_8);
+        JSONObject req = new JSONObject().put("key", id.publicHex).put("nonce", nonce).put("signature", Util.hex(id.sign(msg)));
+        JSONObject r = (JSONObject) post(api("/auth/login"), req);
+        token = r.getString("token");
+        tokenServer = WzApp.server();
+        account = r.optJSONObject("account");
+        loggedIn = true;
+        return account;
+    }
+
+    /** POST as the logged-in device; logs in first, and again once if the token has expired. */
+    private static Object authed(String path, JSONObject body) throws IOException, JSONException {
+        String t;
+        synchronized (Api.class) {
+            if (token == null || !WzApp.server().equals(tokenServer)) login();
+            t = token;
+        }
+        try {
+            return post(api(path), body, t);
+        } catch (HttpError e) {
+            if (e.status != 401) throw e;
+            synchronized (Api.class) {
+                login();
+                t = token;
+            }
+            return post(api(path), body, t);
+        }
+    }
+
+    /** Claim a player name for this device. */
+    static JSONObject register(String username) throws IOException, JSONException {
+        JSONObject a = (JSONObject) authed("/accounts", new JSONObject().put("username", username));
+        account = a;
+        return a;
+    }
+
+    /** A code another device redeems to play as this account (valid 10 minutes). */
+    static String linkCode() throws IOException, JSONException {
+        return ((JSONObject) authed("/accounts/me/link-code", new JSONObject())).getString("code");
+    }
+
+    /** Join the account of another device with its link code. */
+    static JSONObject link(String code) throws IOException, JSONException {
+        JSONObject a = (JSONObject) authed("/accounts/link", new JSONObject().put("code", code.trim()));
+        account = a;
+        return a;
+    }
+
+    static void serverChanged() {
+        synchronized (Api.class) {
+            token = null;
+        }
+        account = null;
+        loggedIn = false;
     }
 
     interface Progress {
