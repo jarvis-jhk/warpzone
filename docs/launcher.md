@@ -155,16 +155,25 @@ game) has the focus, the launcher ignores them.
 
 | Button | Does |
 |---|---|
-| D-pad / left stick | move to the next control in that direction (held: repeats); the focused control scrolls into view |
+| D-pad / left stick | move to the next control in that direction (held: repeats), only within the page or the open dialog — never into the tab bar; the focused control gets a ring and scrolls into view |
 | A | activate (open a game, press a button) |
 | B | back (game page → library, close a dialog) |
 | X | library: *Installed* / *All games* |
 | Y | library: *Play*, *Install* or *Update* the focused game |
 | Menu (Start) | *Change artwork* of the focused game |
 | LB / RB | previous / next tab (also Ctrl+PageUp/PageDown) |
+| LT | refresh the page (library, rooms, ladder, mods, moderation) |
+| View (Select) | choose the player name |
+| RT | quit Warpzone (asks first; quits even in background mode) |
 
-With a controller connected (or on a Steam Deck) the tab bar shows LB/RB and
-a hint bar at the bottom shows what each button does on the current page.
+With a controller connected (or on a Steam Deck) the tab bar shows LB/RB, a
+hint bar at the bottom shows what each button does on the current page, and
+the feedback box becomes a *Feedback* tab of its own.
+
+The interface size follows the desktop's scale, but never so far that the
+Steam Deck's 1280×800 layout no longer fits the screen (a Deck often reports
+a scale of 1.5 or more); *Settings → Interface size* overrides it. Library
+tiles are never so tall that two rows do not fit without scrolling.
 
 ## Steam Deck installer
 

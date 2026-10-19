@@ -17,6 +17,7 @@ mod app;
 mod art;
 mod jobs;
 mod lobby;
+mod nav;
 mod pad;
 mod pixel;
 mod settings;
@@ -162,9 +163,15 @@ fn main() {
                         ("library-pad".into(), app::Tab::Library, None, false),
                         ("game-page".into(), app::Tab::Library, first.or(Some("funny-furries".into())), false),
                         ("rooms".into(), app::Tab::Rooms, None, false),
+                        // Rooms moved through with the D-pad (it stays on the page).
+                        ("rooms-pad".into(), app::Tab::Rooms, None, false),
                         ("ladder".into(), app::Tab::Ladder, None, false),
                         ("mods".into(), app::Tab::Mods, None, false),
                         ("settings".into(), app::Tab::Settings, None, false),
+                        // Controller mode only (else the feedback bar at the bottom).
+                        ("feedback".into(), app::Tab::Feedback, None, false),
+                        // View on the controller.
+                        ("player-name".into(), app::Tab::Library, None, false),
                         // Opens "Change artwork" for the first game with SteamGridDB art.
                         ("art-picker".into(), app::Tab::Library, None, false),
                     ],

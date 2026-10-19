@@ -161,6 +161,9 @@ pub enum Tab {
     Ladder,
     Mods,
     Moderation,
+    /// The feedback box as a page of its own (controller mode; with mouse
+    /// and keyboard it is the bar at the bottom).
+    Feedback,
     Settings,
 }
 
@@ -266,6 +269,15 @@ pub struct App {
     pub last_focus: Option<egui::Id>,
     /// The library tile to focus when coming back from a game page.
     pub focus_tile: Option<String>,
+    /// Controller dialogs: choose the player name, quit.
+    pub name_dialog: bool,
+    /// Put the cursor into the name field (the dialog just opened).
+    pub name_focus: bool,
+    pub confirm_quit: bool,
+    /// Quitting for real (not hiding to the background).
+    pub quit: bool,
+    /// LT asked the page to load its data again (tabs that load by themselves).
+    pub refresh: bool,
 }
 
 fn style(ctx: &egui::Context) {
@@ -285,6 +297,9 @@ fn style(ctx: &egui::Context) {
     v.widgets.hovered.bg_fill = Color32::from_rgb(45, 40, 90);
     v.widgets.hovered.weak_bg_fill = Color32::from_rgb(45, 40, 90);
     v.widgets.active.bg_fill = ACCENT;
+    // Focused controls look active: the D-pad's focus must be plain to see.
+    v.widgets.active.weak_bg_fill = ACCENT;
+    v.widgets.active.bg_stroke = Stroke::new(1.5, Color32::WHITE);
     v.selection.bg_fill = ACCENT;
     v.selection.stroke = Stroke::new(1.0, Color32::WHITE);
     v.hyperlink_color = ACCENT2;
@@ -368,6 +383,11 @@ impl App {
             picker: None,
             last_focus: None,
             focus_tile: None,
+            name_dialog: false,
+            name_focus: false,
+            confirm_quit: false,
+            quit: false,
+            refresh: false,
         };
         app.login();
         app.refresh_catalog();
@@ -1357,6 +1377,13 @@ fn focused(r: &egui::Response) -> bool {
     r.ctx.memory(|m| m.has_focus(r.id))
 }
 
+/// On a Deck: how to type without a keyboard.
+fn keyboard_hint(ui: &mut egui::Ui) {
+    if crate::pad::steam_deck() {
+        ui.label(RichText::new("No keyboard? Steam + X opens the on-screen keyboard.").color(MUTED).size(12.5));
+    }
+}
+
 fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     Frame::new()
         .fill(PANEL)
@@ -1481,6 +1508,9 @@ impl App {
         if !self.roles.is_empty() {
             tabs.push((Tab::Moderation, "Moderation"));
         }
+        if self.pad.active() {
+            tabs.push((Tab::Feedback, "Feedback"));
+        }
         tabs.push((Tab::Settings, "Settings"));
         tabs
     }
@@ -1519,8 +1549,15 @@ impl App {
             items.extend([(Glyph::A, "Select"), (Glyph::B, "Back")]);
         }
         items.push((Glyph::Lb, ""));
-        items.push((Glyph::Rb, "Switch tab"));
-        crate::pad::hints(ui, &items);
+        items.push((Glyph::Rb, "Tab"));
+        ui.horizontal(|ui| {
+            crate::pad::hints(ui, &items);
+            if self.picker.is_none() {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    crate::pad::hints(ui, &[(Glyph::Lt, "Refresh"), (Glyph::View, "Player name"), (Glyph::Rt, "Quit")]);
+                });
+            }
+        });
     }
 
     fn top_bar(&mut self, ui: &mut egui::Ui) {
@@ -1552,11 +1589,17 @@ impl App {
                     Some(a) => {
                         ui.label(RichText::new(&a.username).strong());
                     }
+                    None if pad => {
+                        ui.label(RichText::new("Choose a player name").color(ACCENT2));
+                    }
                     None => {
                         if ui.link("Choose a username").clicked() {
                             self.tab = Tab::Settings;
                         }
                     }
+                }
+                if pad {
+                    crate::pad::glyph(ui, Glyph::View, 22.0);
                 }
             });
         });
@@ -1589,6 +1632,201 @@ impl App {
                 self.send_feedback();
             }
         });
+    }
+
+    /// The feedback box as a tab (controller mode): the same, roomier.
+    fn feedback_tab(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Feedback");
+        ui.label(RichText::new("Tell us about a problem or an idea. A problem report about a game comes with its last log lines.").color(MUTED));
+        ui.add_space(6.0);
+        let target = self.feedback_target();
+        let name = |id: &str| self.games.iter().find(|g| g.desc.id == id).map(|g| g.desc.name.clone()).unwrap_or_else(|| "Warpzone".into());
+        let mut pick = target.clone();
+        ui.horizontal(|ui| {
+            ui.label("About");
+            egui::ComboBox::from_id_salt("feedbackgame-tab").selected_text(name(&target)).width(260.0).show_ui(ui, |ui| {
+                ui.selectable_value(&mut pick, FEEDBACK_WARPZONE.to_string(), "Warpzone (launcher, online)");
+                for g in self.games.iter().filter(|g| !g.desc.hidden) {
+                    ui.selectable_value(&mut pick, g.desc.id.clone(), &g.desc.name);
+                }
+            });
+            ui.add_space(12.0);
+            ui.selectable_value(&mut self.feedback_idea, false, "Problem");
+            ui.selectable_value(&mut self.feedback_idea, true, "Idea");
+        });
+        if pick != target {
+            self.feedback_game = Some(pick);
+        }
+        let hint = if self.feedback_idea { "What would make it better?" } else { "What went wrong?" };
+        ui.add(egui::TextEdit::multiline(&mut self.feedback_text).hint_text(hint).desired_rows(5).desired_width(f32::INFINITY));
+        keyboard_hint(ui);
+        let can = !self.feedback_text.trim().is_empty();
+        if ui.add_enabled(can, egui::Button::new(RichText::new("Send").size(16.0))).clicked() && can {
+            self.send_feedback();
+        }
+    }
+
+    /// Choose the player name (View on the controller).
+    fn name_modal(&mut self, ctx: &egui::Context) {
+        let mut close = false;
+        let resp = egui::Modal::new(egui::Id::unique("player-name")).show(ctx, |ui| {
+            ui.set_width(520.0);
+            ui.label(RichText::new("Player name").font(display(22.0)));
+            match self.account.clone() {
+                Some(a) => {
+                    ui.label(format!("You play as {}.", a.username));
+                    ui.label(
+                        RichText::new("The name is fixed once chosen; a moderator can change it for you. Settings → Your identity links another device to it.")
+                            .color(MUTED),
+                    );
+                }
+                None => {
+                    ui.label(RichText::new("The name others see in rooms and on the ladder: 3–16 letters, digits, _ or -.").color(MUTED));
+                    let edit = ui.add(egui::TextEdit::singleline(&mut self.username_input).hint_text("player name").desired_width(300.0));
+                    if std::mem::take(&mut self.name_focus) {
+                        edit.request_focus();
+                    }
+                    keyboard_hint(ui);
+                    let enter = edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    let can = self.username_input.trim().len() >= 3;
+                    if (ui.add_enabled(can, egui::Button::new(RichText::new("Choose").size(16.0))).clicked() || (enter && can)) && can {
+                        self.claim_username();
+                        close = true;
+                    }
+                }
+            }
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                if ui.button("Close").clicked() {
+                    close = true;
+                }
+                crate::pad::glyph(ui, Glyph::B, 20.0);
+            });
+        });
+        if close || resp.should_close() {
+            self.name_dialog = false;
+        }
+    }
+
+    /// RT on the controller: quit Warpzone (asks first).
+    fn quit_modal(&mut self, ctx: &egui::Context) {
+        let mut answer = None;
+        let resp = egui::Modal::new(egui::Id::unique("quit")).show(ctx, |ui| {
+            ui.set_width(420.0);
+            ui.label(RichText::new("Quit Warpzone?").font(display(22.0)));
+            if self.settings.background == Some(true) {
+                ui.label(RichText::new("It stops updating your games in the background until you start it again.").color(MUTED));
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui.add(egui::Button::new(RichText::new("Quit").size(16.0))).clicked() {
+                    answer = Some(true);
+                }
+                if ui.add(egui::Button::new(RichText::new("Stay").size(16.0))).clicked() {
+                    answer = Some(false);
+                }
+            });
+        });
+        if resp.should_close() {
+            answer = Some(false);
+        }
+        match answer {
+            Some(true) => {
+                self.quit = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            Some(false) => self.confirm_quit = false,
+            None => {}
+        }
+    }
+
+    pub fn claim_username(&mut self) {
+        let api = self.api.clone();
+        let name = self.username_input.trim().to_string();
+        self.jobs.run(move || {
+            let r = api.register(&name);
+            Box::new(move |app: &mut App| match r {
+                Ok(a) => {
+                    app.toast(format!("Welcome, {}!", a.username));
+                    app.account = Some(a);
+                }
+                Err(e) => app.toast(e.to_string()),
+            })
+        });
+    }
+
+    /// Move the focus with this frame's D-pad presses, within `scope` (the
+    /// page or the dialog on top). Nothing there focused yet: a page picks
+    /// its natural first control next frame (`wants_focus`), else the
+    /// top-left one; a dialog starts at its top-left one at once.
+    fn navigate(&mut self, ctx: &egui::Context, scope: &[crate::nav::Target], dialog: bool) {
+        let moves = self.pad.take_moves();
+        let focused = ctx.memory(|m| m.focused());
+        if self.pad.wants_focus && !crate::nav::inside(scope, focused) {
+            // Nobody took it this frame (a page without a natural first control).
+            self.pad.wants_focus = false;
+            if let Some(id) = crate::nav::first(scope) {
+                ctx.memory_mut(|m| m.request_focus(id));
+                ctx.request_repaint();
+            }
+            return;
+        }
+        let mut cur = focused;
+        for d in moves {
+            if !crate::nav::inside(scope, cur) {
+                if dialog {
+                    cur = crate::nav::first(scope);
+                    break;
+                }
+                self.pad.focus_next = true;
+                ctx.request_repaint();
+                return;
+            }
+            if let Some(id) = crate::nav::step(scope, cur, d) {
+                cur = Some(id);
+            }
+        }
+        if cur != focused
+            && let Some(id) = cur
+        {
+            ctx.memory_mut(|m| m.request_focus(id));
+            ctx.request_repaint();
+        }
+    }
+
+    /// LT: load the page's data again.
+    fn refresh_page(&mut self) {
+        match self.tab {
+            Tab::Rooms => self.load_rooms(),
+            Tab::Moderation => self.load_moderation(),
+            Tab::Mods | Tab::Ladder => self.refresh = true,
+            _ => self.refresh_catalog(),
+        }
+    }
+
+    /// Interface size: the player's choice, else the desktop's scale but
+    /// never so big that the 1280×800 layout (the Steam Deck's screen) no
+    /// longer fits the monitor. A Deck in desktop mode or Game Mode often
+    /// reports a scale of 1.5 or more, which made everything far too big.
+    fn apply_scale(&mut self, ctx: &egui::Context) {
+        let native = ctx.native_pixels_per_point().unwrap_or(1.0);
+        let want = match self.settings.ui_scale {
+            Some(s) => s.clamp(0.5, 3.0),
+            None => {
+                // The monitor (else the window) in screen pixels (egui gives
+                // points at the scale in use now).
+                let ppp = ctx.pixels_per_point();
+                let px = ctx.input(|i| i.viewport().monitor_size.or(i.viewport().inner_rect.map(|r| r.size()))).map(|s| s * ppp);
+                match px {
+                    Some(px) if px.x > 0.0 && px.y > 0.0 => (px.x / 1280.0).min(px.y / 800.0).clamp(1.0, native.max(1.0)).min(native),
+                    _ => native,
+                }
+            }
+        };
+        let zoom = want / native;
+        if (ctx.zoom_factor() - zoom).abs() > 0.01 {
+            ctx.set_zoom_factor(zoom);
+        }
     }
 
     /// Games the library shows: every visible game, or with games installed
@@ -1627,6 +1865,9 @@ impl App {
                 if hidden > 0 {
                     ui.checkbox(&mut self.show_hidden, format!("Show hidden games ({hidden})"));
                 }
+                if pad {
+                    crate::pad::glyph(ui, Glyph::Lt, 20.0);
+                }
                 if ui.button("Refresh").clicked() {
                     self.refresh_catalog();
                 }
@@ -1643,12 +1884,13 @@ impl App {
                     .color(MUTED),
             );
         }
-        // Portrait tiles, about 180 px wide: six columns in the 1280×800 window
-        // (the Steam Deck's screen).
+        // Portrait tiles, about 170 px wide, but never so tall that two rows
+        // do not fit without scrolling (the Steam Deck's 1280×800 screen).
         let gap = 14.0;
         let avail = ui.available_width() - 16.0;
-        let cols = ((avail + gap) / (172.0 + gap)).floor().max(1.0) as usize;
-        let w = (avail - gap * (cols as f32 - 1.0)) / cols as f32;
+        let fit_w = (((ui.available_height() - gap * 2.0 - 4.0) / 2.0) / 1.5).max(70.0);
+        let cols = ((avail + gap) / (172.0_f32.min(fit_w) + gap)).floor().max(1.0) as usize;
+        let w = ((avail - gap * (cols as f32 - 1.0)) / cols as f32).min(fit_w);
         let h = w * 1.5;
         let more = total - ids.len();
         // A controller came in with nothing focused: start at the game we came
@@ -2266,6 +2508,9 @@ impl App {
                 if ui.button("Refresh").clicked() {
                     self.load_rooms();
                 }
+                if self.pad.active() {
+                    crate::pad::glyph(ui, Glyph::Lt, 20.0);
+                }
             });
         });
         card(ui, |ui| {
@@ -2345,7 +2590,7 @@ impl App {
             )
             .color(MUTED),
         );
-        let mut load: Option<(String, String)> = None;
+        let mut load: Option<(String, String)> = if std::mem::take(&mut self.refresh) { self.ladder_pick.clone() } else { None };
         ui.horizontal_wrapped(|ui| {
             for g in &self.games {
                 for q in &g.desc.ladder {
@@ -2428,7 +2673,7 @@ impl App {
     fn mods_tab(&mut self, ui: &mut egui::Ui) {
         ui.heading("Mods");
         ui.label(RichText::new("Every version is checked by a moderator before it appears. Dependencies install automatically; joining a modded room installs exactly its set.").color(MUTED));
-        let mut load = false;
+        let mut load = std::mem::take(&mut self.refresh);
         if self.mods_game.is_none()
             && let Some(g) = self.games.iter().find(|g| g.desc.mods.is_some())
         {
@@ -2706,6 +2951,15 @@ impl App {
                 if ui.checkbox(&mut self.settings.auto_update, "Update games automatically").changed() {
                     self.settings.save();
                 }
+                ui.horizontal(|ui| {
+                    ui.label("Interface size");
+                    for (v, l) in [(None, "Auto"), (Some(0.75), "75 %"), (Some(1.0), "100 %"), (Some(1.25), "125 %"), (Some(1.5), "150 %"), (Some(2.0), "200 %")] {
+                        if ui.selectable_label(self.settings.ui_scale == v, l).clicked() && self.settings.ui_scale != v {
+                            self.settings.ui_scale = v;
+                            self.settings.save();
+                        }
+                    }
+                });
                 if ui
                     .checkbox(&mut self.settings.crash_reports, "Report crashes")
                     .on_hover_text("When a game or the launcher crashes, send what happened and the last log lines (without your user name) to its developers.")
@@ -2726,18 +2980,7 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(&mut self.username_input).hint_text("username (3–16 letters, digits, _ -)").desired_width(260.0));
                             if primary_button(ui, "Claim", false).clicked() {
-                                let api = self.api.clone();
-                                let name = self.username_input.trim().to_string();
-                                self.jobs.run(move || {
-                                    let r = api.register(&name);
-                                    Box::new(move |app: &mut App| match r {
-                                        Ok(a) => {
-                                            app.toast(format!("Welcome, {}!", a.username));
-                                            app.account = Some(a);
-                                        }
-                                        Err(e) => app.toast(e.to_string()),
-                                    })
-                                });
+                                self.claim_username();
                             }
                         });
                     }
@@ -3133,6 +3376,7 @@ impl App {
         self.tab = tab;
         self.page = page;
         self.first_run = modal;
+        self.name_dialog = name == "player-name";
         // Controller navigation, as a player would do it.
         let idx = self.shots.as_ref().unwrap().idx;
         if self.shots.as_ref().unwrap().scripted != Some(idx) {
@@ -3141,6 +3385,7 @@ impl App {
             self.pad.script = match name.as_str() {
                 "library-pad" => vec![Right, Right, Right],
                 "art-picker" => vec![Right, Right, Down],
+                "rooms-pad" => vec![Down, Down, Down, Right],
                 _ => Vec::new(),
             };
             if !self.pad.script.is_empty() {
@@ -3197,7 +3442,7 @@ impl eframe::App for App {
             ctx.request_repaint_after(Duration::from_millis(if self.hidden { 30_000 } else { 100 }));
         }
         // Background mode: the window's X hides instead of quitting.
-        if ctx.input(|i| i.viewport().close_requested()) && self.settings.background == Some(true) {
+        if ctx.input(|i| i.viewport().close_requested()) && self.settings.background == Some(true) && !self.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
             self.hidden = true;
@@ -3213,8 +3458,11 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         self.set_ctx(&ctx);
         self.screenshots(&ctx);
-        // LB/RB and Ctrl+PageUp/PageDown switch tabs (not while a dialog is open).
-        if self.picker.is_none() && !self.first_run {
+        self.apply_scale(&ctx);
+        let dialog = self.picker.is_some() || self.first_run || self.name_dialog || self.confirm_quit;
+        // LB/RB and Ctrl+PageUp/PageDown switch tabs, LT refreshes, View
+        // chooses the player name, RT quits (not while a dialog is open).
+        if !dialog {
             let (prev, next) =
                 ctx.input(|i| (i.modifiers.command && i.key_pressed(egui::Key::PageUp), i.modifiers.command && i.key_pressed(egui::Key::PageDown)));
             if self.pad.take(Btn::Lb) || prev {
@@ -3223,6 +3471,20 @@ impl eframe::App for App {
             if self.pad.take(Btn::Rb) || next {
                 self.step_tab(1);
             }
+            if self.pad.take(Btn::Lt) {
+                self.refresh_page();
+            }
+            if self.pad.take(Btn::View) {
+                self.name_dialog = true;
+                self.name_focus = true;
+            }
+            if self.pad.take(Btn::Rt) {
+                self.confirm_quit = true;
+            }
+        }
+        // Without a controller there is no Feedback tab (the bar at the bottom is it).
+        if self.tab == Tab::Feedback && !self.pad.active() {
+            self.tab = Tab::Library;
         }
         // A control focused by the D-pad scrolls into view.
         let focused = ctx.memory(|m| m.focused());
@@ -3235,14 +3497,18 @@ impl eframe::App for App {
             }
         }
         egui::Panel::top("top").frame(Frame::new().fill(Color32::from_rgb(14, 14, 25)).inner_margin(Margin::symmetric(14, 10))).show(ui, |ui| self.top_bar(ui));
-        egui::Panel::bottom("feedback")
-            .frame(Frame::new().fill(Color32::from_rgb(14, 14, 25)).inner_margin(Margin::symmetric(14, 8)))
-            .show(ui, |ui| self.feedback_bar(ui));
-        if self.pad.active() {
+        // With a controller the feedback box is a tab of its own.
+        if !self.pad.active() {
+            egui::Panel::bottom("feedback")
+                .frame(Frame::new().fill(Color32::from_rgb(14, 14, 25)).inner_margin(Margin::symmetric(14, 8)))
+                .show(ui, |ui| self.feedback_bar(ui));
+        } else {
             egui::Panel::bottom("hints")
                 .frame(Frame::new().fill(Color32::from_rgb(18, 18, 31)).inner_margin(Margin::symmetric(14, 6)))
                 .show(ui, |ui| self.hint_bar(ui));
         }
+        // The D-pad moves only among what the page (or a dialog) draws.
+        let before = crate::nav::mark(&ctx);
         egui::CentralPanel::default().frame(Frame::new().fill(BG).inner_margin(Margin::same(18))).show(ui, |ui| {
             if self.lobby.is_some() {
                 self.lobby_view(ui);
@@ -3255,9 +3521,12 @@ impl eframe::App for App {
                 (Tab::Ladder, _) => self.ladder_tab(ui),
                 (Tab::Mods, _) => self.mods_tab(ui),
                 (Tab::Moderation, _) => self.moderation_tab(ui),
+                (Tab::Feedback, _) => self.feedback_tab(ui),
                 (Tab::Settings, _) => self.settings_tab(ui),
             }
         });
+        let mut scope = crate::nav::since(&ctx, &before);
+        let mut in_dialog = false;
         if !self.toasts.is_empty() {
             egui::Area::new(egui::Id::unique("toasts")).anchor(egui::Align2::RIGHT_BOTTOM, Vec2::new(-18.0, -18.0)).show(&ctx, |ui| {
                 for (t, _) in &self.toasts {
@@ -3274,23 +3543,36 @@ impl eframe::App for App {
             });
             ctx.request_repaint_after(Duration::from_millis(500));
         }
-        if self.first_run {
-            self.first_run_modal(&ctx);
+        // A dialog on top takes the D-pad.
+        type Modal = fn(&mut App, &egui::Context);
+        let modals: [(bool, Modal); 4] = [
+            (self.first_run, App::first_run_modal),
+            (self.picker.is_some(), App::picker_modal),
+            (self.name_dialog, App::name_modal),
+            (self.confirm_quit, App::quit_modal),
+        ];
+        for (open, show) in modals {
+            if open {
+                let before = crate::nav::mark(&ctx);
+                show(self, &ctx);
+                scope = crate::nav::since(&ctx, &before);
+                in_dialog = true;
+            }
         }
-        if self.picker.is_some() {
-            self.picker_modal(&ctx);
-        }
-        // A direction nobody used (a page without a natural first control):
-        // start at the first control of the page.
-        if self.pad.wants_focus && ctx.memory(|m| m.focused()).is_none() {
-            self.pad.wants_focus = false;
-            ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::Next));
+        self.navigate(&ctx, &scope, in_dialog);
+        // A ring around what the D-pad focused: text fields and check boxes
+        // show their focus too faintly to follow from the couch.
+        if self.pad.last_used.is_some()
+            && let Some(f) = ctx.memory(|m| m.focused())
+            && let Some(t) = scope.iter().find(|t| t.id == f)
+        {
+            let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::unique("pad-focus")));
+            p.rect_stroke(t.rect.expand(3.0), CornerRadius::same(10), Stroke::new(2.0, ACCENT2), egui::StrokeKind::Outside);
         }
     }
 
-    fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
-        let focused = ctx.memory(|m| m.focused()).is_some();
-        self.pad.feed(raw, focused);
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        self.pad.feed(raw);
     }
 
     fn clear_color(&self, _v: &egui::Visuals) -> [f32; 4] {

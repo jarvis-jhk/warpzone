@@ -31,6 +31,10 @@ pub struct Settings {
     pub griddb_key: String,
     /// Library: show every game, not only the installed ones.
     pub show_all_games: bool,
+    /// Interface size in screen pixels per point (1.0 = 100 %); `None`:
+    /// automatic (the desktop's scale, but never so big that the Steam
+    /// Deck's 1280×800 layout no longer fits the screen).
+    pub ui_scale: Option<f32>,
 }
 
 /// Where a game's library tile comes from.
@@ -60,6 +64,7 @@ impl Default for Settings {
             art: BTreeMap::new(),
             griddb_key: String::new(),
             show_all_games: false,
+            ui_scale: None,
         }
     }
 }

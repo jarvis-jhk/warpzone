@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Launcher, controller (from the first test on a real Steam Deck): the D-pad
+  moves only within the page or the open dialog, never into the tab bar, and
+  works on every tab (text fields no longer swallow it); the focused control
+  gets a clearly visible ring. LT refreshes the page, View chooses the
+  player name, RT quits (asks first). The feedback box is a tab of its own.
+  Everything was far too big on the Deck: the interface follows the
+  desktop's scale but keeps the 1280×800 layout on the screen, with
+  *Settings → Interface size* to override, and two rows of library tiles
+  always fit without scrolling.
+
 ## 0.1.3
 
 - Launcher: the library is a wall of portrait tiles, like Steam's — each
