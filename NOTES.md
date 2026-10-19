@@ -25,6 +25,15 @@
   (done for the steamgriddb lines with 0.1.3, requests t_mvf0la0u8ty1q,
   t_mvf0lhe5bg029). They stay out of this repo's games/ (it would go stale);
   opens4.toml is the vtt copy plus `steamgriddb = 5248521`.
+  RELEASED v0.1.3 and DEPLOYED on vtt (2026-10-19 ~09:05 UTC, healthy;
+  DB backup /root/warpzone/backups/warpzone-0.1.2-*): override pinned to
+  0.1.3, all 14 descriptors pushed (main's games/*.toml incl. spacehog
+  `fetch`, the four port repos' packaging/warpzone/*.toml, opens4 as above),
+  and server.toml now has `[fault_reports]` and `[feedback]` (with lanes for
+  every game incl. the ports) — so the pending items of 2026-10-16/17 about
+  those sections are done. The installer ran end to end here against the
+  real 0.1.3 AppImage (stub zenity, fake Steam userdata; no FUSE in the
+  container, so via --appimage-extract-and-run with TMPDIR set).
 
 - 2026-10-18 (request t_mvczzhug1bsbc6, Jan: "Give Warpzone an option to use
   pure-Rust crypto"): cargo feature `pure-rust-crypto` on every crate
