@@ -2050,7 +2050,9 @@ impl App {
         let mut x = rect.left() + 9.0;
         let y = rect.bottom() - 15.0;
         let mut icon = |glyph: Cap, n: Option<u32>, on: bool| {
-            let col = if on { Color32::WHITE } else { Color32::from_white_alpha(110) };
+            // Opaque: a glyph is several overlapping strokes and fills, so a
+            // translucent colour darkens/brightens wherever they cross.
+            let col = if on { Color32::WHITE } else { Color32::from_rgb(132, 132, 148) };
             draw_glyph(&p, egui::pos2(x + 9.0, y), glyph, col, Color32::from_rgb(16, 16, 24));
             x += 22.0;
             if let Some(n) = n {

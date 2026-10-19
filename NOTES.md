@@ -1,5 +1,13 @@
 # Notes
 
+- 2026-10-19 (request t_mvfl9lwh3x4ga, report API relaying Jan's screenshot
+  of v0.1.9: "the transparency on these icons stack"): desktop/Deck library
+  tile drew not-yet-available capability glyphs in from_white_alpha(110);
+  each glyph is several overlapping shapes, so alpha added up at overlaps.
+  Now opaque rgb(132,132,148). Before/after checked in Xvfb :217 shots
+  (GTetrinet tile). Android TileView draws only pad/globe, already opaque:
+  no change. RELEASED v0.1.10 (launcher only, vtt not redeployed).
+
 - 2026-10-19 (requests t_mvfj9piaafteb, t_mvfjbczncgs7h, t_mvfjfeafd41kf,
   Jan's Deck + Android tests): RELEASED v0.1.9 (launcher/core/capi; server
   unchanged, vtt not redeployed). Deck: style.scroll_animation

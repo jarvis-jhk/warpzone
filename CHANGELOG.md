@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.10
+
+- Launcher: the dimmed icons on a library tile (online, mods, ladder that are
+  still coming) are an even grey again. They were drawn translucent, so where
+  a glyph's strokes and shapes overlapped (the globe's lines, the trophy's
+  handles, the puzzle's knobs) they showed brighter or muddier.
+
 ## 0.1.9
 
 Launcher, from Steam Deck testing:
