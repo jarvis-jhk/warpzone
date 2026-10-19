@@ -13,6 +13,9 @@
   Pad press -> Event::PointerGone + CursorIcon::None until a pointer/touch
   event (pad.pointer_hidden). New shot steps library-down, quit; verified on
   Xvfb :217 Deck-sized (OpenTS gone, third row scrolled up, no hover).
+  Release CI green; vtt's /api/v1/games/launcher/updates offers 0.1.7 to
+  0.1.6 launchers; APK published to JARVIS apkup (versionCode 1007, the
+  CI-built asset). Not tried on the real Deck (no Deck in gateway scope).
 
 - 2026-10-19 (request t_mvf4iqge2m9tv, Jan: "add an android launcher to
   warpzone releases ... feels like a touch version of the steam deck version
