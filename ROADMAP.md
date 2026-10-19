@@ -18,13 +18,19 @@ Order is priority. Done items move to the [changelog](CHANGELOG.md).
    ready for a game to link; and [integration](docs/integration.md) says how a
    game links Warpzone on macOS (linker flags, install name / rpath, code
    signing and notarisation of a bundled dylib).
-3. **NAT test matrix in CI**: Linux network namespaces with nftables
+3. **LAN play without internet**, seamlessly: everything works as it does
+   now — same UI in the launcher and in games, same rooms, codes and
+   joining — but when devices have no internet and share a LAN, they find
+   each other's games by themselves (local auto-discovery, e.g. a broadcast /
+   multicast beacon, no server needed) and connect directly over the LAN.
+   (Jan, 2026-10-19)
+4. **NAT test matrix in CI**: Linux network namespaces with nftables
    emulating full-cone, restricted, port-restricted and symmetric NAT, IPv4
    and IPv6, plus relay fallback.
-4. **Signed endpoint bootstrap**: a minisign-signed `endpoints.json` in this
+5. **Signed endpoint bootstrap**: a minisign-signed `endpoints.json` in this
    repository, so an instance can move to another domain without breaking
    old clients.
-5. **Automated pre-review of mod submissions** (a reviewer key adds notes:
+6. **Automated pre-review of mod submissions** (a reviewer key adds notes:
    file listing, executables, likely copyrighted content) — decisions stay
    with the human moderator.
 

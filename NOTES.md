@@ -17,7 +17,14 @@
   D-pad. Asked lanes baba-port, bopl-port, rounds-port, towerfall-port,
   opens4 to add their ids (22797, 5389529, 5281211, 3049, 5248521) to their
   vtt descriptors after the 0.1.3 server deploy. The Deck installer's
-  zenity/Steam steps were not run on a real Deck (no device in this lane).
+  zenity/Steam steps were not run on a real Deck (no device in this lane);
+  download + SHA-256 check tested with stubbed zenity.
+  The port lanes do not reach vtt: their descriptors live in their own repos
+  (packaging/warpzone/<id>.toml of baba-port, bopl-port, rounds-port,
+  towerfall-port) and this lane copies them to vtt config/games/ on request
+  (done for the steamgriddb lines with 0.1.3, requests t_mvf0la0u8ty1q,
+  t_mvf0lhe5bg029). They stay out of this repo's games/ (it would go stale);
+  opens4.toml is the vtt copy plus `steamgriddb = 5248521`.
 
 - 2026-10-18 (request t_mvczzhug1bsbc6, Jan: "Give Warpzone an option to use
   pure-Rust crypto"): cargo feature `pure-rust-crypto` on every crate
