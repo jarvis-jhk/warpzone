@@ -178,6 +178,12 @@ launcher, it also passes its device key as the string extra
 creating the client, so the game plays as that player — on the desktop, all
 games share one identity file anyway. A different key the game had is kept
 as `identity.key.old`.
+
+On Android the core cannot find a data directory by itself (`HOME` and
+`XDG_DATA_HOME` are unset, the working directory is `/`), so set
+`WARPZONE_HOME` to a directory in the app's own files (e.g.
+`<getFilesDir()>/warpzone`) before the first Warpzone call —
+`adopt_identity`, the client, anything that reads or writes the identity.
 Name the package in the descriptor (`launch.exec.android`) and publish the
 APK with the release (`install.assets.android`), listed in the release's
 `SHA256SUMS`: the launcher installs nothing it cannot check.

@@ -19,7 +19,10 @@
   (API 30, TCG, needs ANDROID_I_WANT_MY_TCG=yes) vs local server: claim
   name, link code redeemed by `wz link`, and `wz link-code` redeemed on the
   emulator all worked. Not tested: a game adopting the key (no Android game
-  in dev). Asked baba-port to adopt it (t_mvfk1dgegd8l4).
+  in dev). Asked baba-port to adopt it (t_mvfk1dgegd8l4); it did (baba
+  84f8f22) and reported (t_mvfkhkct0s3px) that paths::home() has no Android
+  case: games must set WARPZONE_HOME to their files dir first — documented
+  in docs/integration.md#android (no code change).
 
 - 2026-10-19 (request t_mvficftd89g0q, Jan: "Warpzone bugfix on the laptop.
   Check it and make a release if it's valid"): the uncommitted fix was
