@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4
 
 - Launcher, controller (from the first test on a real Steam Deck): the D-pad
   moves only within the page or the open dialog, never into the tab bar, and

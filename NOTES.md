@@ -1,5 +1,27 @@
 # Notes
 
+- 2026-10-19 (request t_mvf1o4h7dmpfn, Jan's first test of 0.1.3 on a real
+  Deck; t_mvf276umflxih federation went into ROADMAP.md only): launcher
+  controller rework, RELEASED as v0.1.4 (launcher-only; server unchanged, vtt
+  stays on 0.1.3 — the launcher self-update finds 0.1.4 through /updates).
+  D-pad no longer sends arrow keys: egui's own arrow focus roamed the whole
+  window (tab bar, bottom bars) and TextEdits ate arrows, so tabs other than
+  the library "did not react"; also focused buttons looked almost unfocused
+  (active.weak_bg_fill was never set). nav.rs: `mark`/`since` take the
+  widgets one part drew this frame (ctx.viewport().this_pass.widgets), the
+  app steps the focus among those (egui's 45° cone, then any widget that
+  way), a ring marks the focus. Controller mode: Feedback tab instead of the
+  bar, LT refresh, View player-name dialog (no self-rename API: only
+  moderators rename, so with an account it only shows the name), RT quit
+  with confirm (`quit` bypasses background-hide). "Way too big": Deck
+  reports scale >= 1.5; auto scale = desktop's but capped so 1280x800 fits
+  the monitor (oscillated at first: egui sizes are in points at the current
+  ppp, not native), Settings -> Interface size overrides. Tiles: two rows
+  always fit. Jan's photo was not readable in the worker (attachment path
+  missing), so the size diagnosis is from the description. Shots with
+  `SteamDeck=1 WINIT_X11_SCALE_FACTOR=1.5` on Xvfb :217 (steps rooms-pad,
+  feedback, player-name added). Back-to-Game-Mode: Jan says ignore.
+
 - 2026-10-19 (request t_mvezo9ej4iovu, Jan): launcher library = SteamGridDB
   portrait tiles (descriptor `steamgriddb` id only; core griddb.rs, launcher
   tileart.rs; cache <data>/cache/griddb), "Change artwork…" picker (grids,
