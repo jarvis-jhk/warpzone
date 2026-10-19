@@ -10,13 +10,21 @@ Order is priority. Done items move to the [changelog](CHANGELOG.md).
    16-player shared screens), GTetrinet NG, The Settlers II: Coop (next to the
    RTTR lobby), OpenTS Co-op (verify the tier-0 lobby end to end), the Diablo
    ports. Warpzone follows their needs.
-2. **NAT test matrix in CI**: Linux network namespaces with nftables
+2. **macOS support**, since every game is getting a macOS build:
+   `libwarpzone` (`crates/capi`) and the client tooling (`wz`, the launcher)
+   build and pass their tests in CI on GitHub macOS runners, Apple Silicon
+   (`macos-14`) and Intel (`macos-13`); release artefacts include the macOS
+   libraries (arm64 and x86_64, or one universal binary) with `warpzone.h`,
+   ready for a game to link; and [integration](docs/integration.md) says how a
+   game links Warpzone on macOS (linker flags, install name / rpath, code
+   signing and notarisation of a bundled dylib).
+3. **NAT test matrix in CI**: Linux network namespaces with nftables
    emulating full-cone, restricted, port-restricted and symmetric NAT, IPv4
    and IPv6, plus relay fallback.
-3. **Signed endpoint bootstrap**: a minisign-signed `endpoints.json` in this
+4. **Signed endpoint bootstrap**: a minisign-signed `endpoints.json` in this
    repository, so an instance can move to another domain without breaking
    old clients.
-4. **Automated pre-review of mod submissions** (a reviewer key adds notes:
+5. **Automated pre-review of mod submissions** (a reviewer key adds notes:
    file listing, executables, likely copyrighted content) — decisions stay
    with the human moderator.
 
@@ -30,7 +38,6 @@ Order is priority. Done items move to the [changelog](CHANGELOG.md).
   mod upload from the launcher, mod previews and screenshots, Steam Input
   controller templates for added shortcuts.
 * Mod voting and reviews (structured, no free text) and trusted authors.
-* macOS builds of the library and launcher.
 
 ## Deliberately not planned
 
