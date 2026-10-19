@@ -50,6 +50,15 @@ Order is priority. Done items move to the [changelog](CHANGELOG.md).
    per account, later a Patreon tier). A small per-game key/value and blob
    API in `libwarpzone` and `wz`, last-writer-wins with conflict copies for
    savegames. (Jan, 2026-10-19)
+9. **Steam compatibility tool "Warpzone"** for the Steam Deck (and Steam on
+   Linux): on the Deck in Game Mode you install a game such as ROUNDS
+   normally from Steam, pick *Warpzone* as its compatibility tool in the
+   game's Steam properties and press Play — Warpzone then downloads, keeps
+   updated and launches our open-source version (e.g. the rounds-port)
+   with the player's own game files, instead of the original. The tool is
+   installable the way Steam Deck users expect (dropped into
+   `compatibilitytools.d`, e.g. via ProtonUp-Qt-style install), and the
+   launcher can also install it with one click. (Jan, 2026-10-19)
 
 ## Next
 
