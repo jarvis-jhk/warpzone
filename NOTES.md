@@ -1,5 +1,11 @@
 # Notes
 
+- 2026-10-20 (request t_mvg8khpo18far4, towerfall-port lane via report API:
+  forward towerfall-port feedback to its lane): nothing to do — vtt's
+  server.toml `[feedback] lanes` has had `towerfall-port = "towerfall-port"`
+  since the 0.1.3 deploy, and the live game id is `towerfall-port`. Noted:
+  towerfall-port pins warpzone-core v0.1.11.
+
 - 2026-10-20 (request t_mvg3xqsgvasri, spacehog lane via report API:
   macOS libwarpzone + launcher; CI failures t_mvg4fck9ytu0a/t_mvg4fi6ez2ev9
   were this work's own first macOS run): RELEASED v0.1.11. Platform `macos`
