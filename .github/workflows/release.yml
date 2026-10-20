@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Dry run from a branch: builds every artifact, publishes nothing.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -173,6 +175,7 @@ jobs:
 
   publish:
     needs: [linux, windows, macos, android]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
