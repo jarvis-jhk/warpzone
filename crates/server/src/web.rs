@@ -30,8 +30,15 @@ pub fn esc(s: &str) -> String {
     o
 }
 
-const PLATFORMS: &[(&str, &str)] =
-    &[("appimage", "Linux AppImage"), ("linux", "Linux"), ("windows", "Windows"), ("deck", "Steam Deck"), ("portmaster", "PortMaster"), ("android", "Android")];
+const PLATFORMS: &[(&str, &str)] = &[
+    ("appimage", "Linux AppImage"),
+    ("linux", "Linux"),
+    ("windows", "Windows"),
+    ("macos", "macOS"),
+    ("deck", "Steam Deck"),
+    ("portmaster", "PortMaster"),
+    ("android", "Android"),
+];
 
 fn platform_label(p: &str) -> &str {
     PLATFORMS.iter().find(|(k, _)| *k == p).map(|(_, v)| *v).unwrap_or(p)

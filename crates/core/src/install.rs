@@ -37,10 +37,13 @@ pub struct Installed {
     pub dir: PathBuf,
 }
 
-/// `linux`, `deck` (SteamOS) or `windows`.
+/// `linux`, `deck` (SteamOS), `windows` or `macos`.
 pub fn platform() -> &'static str {
     if cfg!(windows) {
         return "windows";
+    }
+    if cfg!(target_os = "macos") {
+        return "macos";
     }
     if std::fs::read_to_string("/etc/os-release").is_ok_and(|s| s.lines().any(|l| l == "ID=steamos" || l == "ID=\"steamos\"")) {
         return "deck";

@@ -243,7 +243,8 @@ pub struct Install {
     /// `s25coop-*-linux-x86_64.tar.gz`). Platforms: `linux`, `appimage`
     /// (self-contained Linux build), `windows`, `deck`, `portmaster`,
     /// `android` (an APK; the Android launcher installs it, and
-    /// `launch.exec.android` names its package).
+    /// `launch.exec.android` names its package), `macos` (one build for
+    /// Apple Silicon and Intel, normally universal).
     pub assets: BTreeMap<String, String>,
     /// Name of the checksum file in the release (`SHA256SUMS`), if any.
     #[serde(default)]
@@ -443,7 +444,7 @@ impl GameDescriptor {
         }
         if let Some(i) = &self.install {
             for p in i.assets.keys() {
-                if !matches!(p.as_str(), "linux" | "appimage" | "windows" | "deck" | "portmaster" | "android") {
+                if !matches!(p.as_str(), "linux" | "appimage" | "windows" | "deck" | "portmaster" | "android" | "macos") {
                     return bad(format!("unknown platform {p}"));
                 }
             }

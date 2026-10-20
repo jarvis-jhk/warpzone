@@ -791,7 +791,7 @@ pub struct ReleaseInfo {
     pub published: String,
     pub prerelease: bool,
     pub page: String,
-    /// Platform (`linux`, `windows`, `deck`, `portmaster`, `android`) → asset.
+    /// Platform (`linux`, `windows`, `macos`, `deck`, `portmaster`, `android`) → asset.
     pub assets: BTreeMap<String, AssetInfo>,
     /// URL of the checksum file, if the release has one. Clients fetch it from
     /// GitHub themselves rather than trusting this server.

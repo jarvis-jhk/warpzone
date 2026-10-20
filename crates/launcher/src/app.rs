@@ -3691,5 +3691,7 @@ mod tests {
         assert!(!runs_on(&a(&["deck"]), "linux"));
         // Android-only: on no desktop.
         assert!(!runs_on(&a(&["android"]), "linux") && !runs_on(&a(&["android"]), "windows"));
+        // macOS takes only a macOS build.
+        assert!(runs_on(&a(&["macos"]), "macos") && !runs_on(&a(&["linux", "appimage", "windows"]), "macos") && !runs_on(&a(&["macos"]), "linux"));
     }
 }

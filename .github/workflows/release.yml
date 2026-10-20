@@ -97,6 +97,56 @@ jobs:
           name: windows
           path: dist/*
 
+  macos:
+    runs-on: macos-14
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      - name: Build (universal arm64 + x86_64, macOS 11+)
+        run: |
+          set -eux
+          V=${GITHUB_REF_NAME#v}
+          mkdir -p dist notices
+          for c in capi cli launcher; do tools/third-party-notices.sh warpzone-$c notices/$c.html; done
+          legal() { cp LICENSE-MIT LICENSE-APACHE $1/; cp notices/$2.html $1/THIRD-PARTY-NOTICES.html; }
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release --target $t -p warpzone-capi
+            cargo build --release --target $t -p warpzone-cli -p warpzone-launcher
+          done
+          uni() { lipo -create target/aarch64-apple-darwin/release/$1 target/x86_64-apple-darwin/release/$1 -output $2; lipo -info $2; }
+          # C library: static and dynamic, one universal file each.
+          d=libwarpzone-$V-universal-apple-darwin; mkdir -p $d/lib $d/include
+          cp crates/capi/include/warpzone.h $d/include/
+          uni libwarpzone.a $d/lib/libwarpzone.a
+          uni libwarpzone.dylib $d/lib/libwarpzone.dylib
+          install_name_tool -id @rpath/libwarpzone.dylib $d/lib/libwarpzone.dylib
+          codesign --force --sign - $d/lib/libwarpzone.dylib
+          cargo rustc -q --release --target aarch64-apple-darwin -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' > $d/NATIVE_LIBS.txt
+          cat $d/NATIVE_LIBS.txt
+          echo "minimum macOS: 11.0 (MACOSX_DEPLOYMENT_TARGET)" >> $d/NATIVE_LIBS.txt
+          legal $d capi
+          # The archived library must link: the C example against it, both arches.
+          for a in arm64 x86_64; do make -B -C examples/c CC="cc -arch $a" LIB=$PWD/$d/lib/libwarpzone.a INC=$PWD/$d/include LDLIBS="$(head -1 $d/NATIVE_LIBS.txt | cut -d' ' -f2-)"; lipo -info examples/c/echo; done
+          tar -czf dist/$d.tar.gz $d; rm -rf $d
+          # CLI.
+          d=wz-$V-macos-universal; mkdir -p $d; uni wz $d/wz; legal $d cli; tar -czf dist/$d.tar.gz $d; rm -rf $d
+          # Launcher: Warpzone.app (self-updates its binary like the Linux tarball).
+          d=warpzone-launcher-$V-macos-universal; mkdir -p $d; uni warpzone warpzone-universal
+          packaging/macos/build-app.sh $PWD/warpzone-universal $V $d; legal $d launcher
+          tar -czf dist/$d.tar.gz $d; rm -rf $d warpzone-universal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+
   android:
     runs-on: ubuntu-24.04
     steps:
@@ -122,7 +172,7 @@ jobs:
           path: dist/*.apk
 
   publish:
-    needs: [linux, windows, android]
+    needs: [linux, windows, macos, android]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
