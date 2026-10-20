@@ -67,6 +67,7 @@ Download `libwarpzone-<version>-<target>` from the
 | Linux aarch64, glibc ≥ 2.27 (PortMaster, Pi) | `libwarpzone-…-aarch64-linux-gnu.tar.gz` | same |
 | Windows, MSVC | `libwarpzone-…-x86_64-windows-msvc.zip` | `lib/warpzone.lib` + the system libraries in `NATIVE_LIBS.txt` |
 | Windows, MinGW / Zig | `libwarpzone-…-x86_64-windows-gnu.zip` | `lib/libwarpzone.a` + `-lws2_32 -luserenv -lntdll -lbcrypt -ladvapi32` (see `NATIVE_LIBS.txt`) |
+| macOS 11+, arm64 + x86_64 (universal) | `libwarpzone-…-universal-apple-darwin.tar.gz` | `lib/libwarpzone.a` + the frameworks and libraries in `NATIVE_LIBS.txt` (0.1.11+) |
 
 Each package has `include/warpzone.h` and a shared library as an alternative.
 Pin the version and its SHA-256 from the release's `SHA256SUMS` in your build,
@@ -81,6 +82,36 @@ set_target_properties(warpzone PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${WARPZONE_DIR}/include)
 target_link_libraries(my-game PRIVATE warpzone pthread dl m)
 ```
+
+### macOS
+
+The macOS package holds one universal (arm64 + x86_64) `libwarpzone.a` and
+`libwarpzone.dylib`, built with `MACOSX_DEPLOYMENT_TARGET=11.0`, so a
+universal game links it once (`-arch arm64 -arch x86_64`) and a game built
+for only one architecture takes its slice. Link the static library with the
+first line of `NATIVE_LIBS.txt` (after `native-static-libs:`), e.g.
+
+```sh
+cc -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 game.o \
+   libwarpzone/lib/libwarpzone.a $(head -1 libwarpzone/NATIVE_LIBS.txt | cut -d' ' -f2-)
+```
+
+In CMake add the same list to `target_link_libraries` (`-framework X` as
+`"-framework X"`). Static linking is the simple way: nothing to bundle,
+sign or find at run time. The dylib's install name is
+`@rpath/libwarpzone.dylib`: if you ship it, copy it into
+`MyGame.app/Contents/Frameworks/`, link with
+`-Wl,-rpath,@executable_path/../Frameworks`, and sign it along with the app
+(`codesign --force --sign <identity> --options runtime` on the dylib first,
+then on the app; ad-hoc `--sign -` for unsigned builds). For notarisation
+the dylib must carry your Developer ID signature with the hardened runtime,
+like every other binary in the bundle. Warpzone itself is not notarised.
+
+For the launcher to install a macOS build, name it in the descriptor as
+`macos` (`install.assets.macos` and `launch.exec.macos`, the path of the
+executable inside the unpacked archive, e.g.
+`MyGame.app/Contents/MacOS/my-game`). The launcher downloads with its own
+HTTP client, so Gatekeeper's quarantine flag is not set on installed games.
 
 Building from source instead: `cargo build --release -p warpzone-capi`
 produces `target/release/libwarpzone.a`. The static library adds about

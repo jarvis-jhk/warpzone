@@ -9,7 +9,7 @@ CC   ?= cc
 LDLIBS ?= -lpthread -ldl -lm
 
 echo: echo.c $(LIB)
-	$(CC) -std=c11 -Wall -Wextra -O2 -D_POSIX_C_SOURCE=199309L -I$(INC) -o $@ echo.c $(LIB) $(LDLIBS)
+	$(CC) -std=c11 -Wall -Wextra -O2 -D_POSIX_C_SOURCE=200809L -I$(INC) -o $@ echo.c $(LIB) $(LDLIBS)
 
 $(ROOT)/target/release/libwarpzone.a:
 	cd $(ROOT) && cargo build --release -p warpzone-capi

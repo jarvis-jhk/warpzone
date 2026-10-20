@@ -46,7 +46,8 @@ jobs:
           done
           # C library: x86_64 glibc, aarch64 glibc 2.27 (PortMaster handhelds), mingw.
           cargo build --release -p warpzone-capi
-          libs() { cargo rustc -q --release -p warpzone-capi --crate-type staticlib $1 -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' || true; }
+          # rustc prints the list only when it compiles (touch) and, with CARGO_TERM_COLOR=always, wrapped in escapes (--color never).
+          libs() { touch crates/capi/src/lib.rs; cargo rustc -q --color never --release -p warpzone-capi --crate-type staticlib $1 -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*'; }
           pkg() { d=libwarpzone-$V-$1; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp $2 $d/lib/; legal $d capi; echo "$3" > $d/NATIVE_LIBS.txt; tar -czf dist/$d.tar.gz $d; rm -rf $d; }
           pkg x86_64-linux-gnu "target/release/libwarpzone.a target/release/libwarpzone.so" "$(libs)"
           cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.27 -p warpzone-capi
@@ -89,7 +90,7 @@ jobs:
           cargo build --release -p warpzone-cli -p warpzone-launcher
           d=libwarpzone-$V-x86_64-windows-msvc; mkdir -p $d/lib $d/include
           cp crates/capi/include/warpzone.h $d/include/; cp target/release/warpzone.lib target/release/warpzone.dll target/release/warpzone.dll.lib $d/lib/ || true
-          cargo rustc -q --release -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' > $d/NATIVE_LIBS.txt || true
+          touch crates/capi/src/lib.rs; cargo rustc -q --color never --release -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' > $d/NATIVE_LIBS.txt
           legal $d capi
           7z a dist/$d.zip $d >/dev/null
           d=wz-$V-windows-x86_64; mkdir -p $d; cp target/release/wz.exe $d/; legal $d cli; 7z a dist/$d.zip $d >/dev/null
@@ -131,7 +132,7 @@ jobs:
           uni libwarpzone.dylib $d/lib/libwarpzone.dylib
           install_name_tool -id @rpath/libwarpzone.dylib $d/lib/libwarpzone.dylib
           codesign --force --sign - $d/lib/libwarpzone.dylib
-          cargo rustc -q --release --target aarch64-apple-darwin -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' > $d/NATIVE_LIBS.txt
+          touch crates/capi/src/lib.rs; cargo rustc -q --color never --release --target aarch64-apple-darwin -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' > $d/NATIVE_LIBS.txt
           cat $d/NATIVE_LIBS.txt
           echo "minimum macOS: 11.0 (MACOSX_DEPLOYMENT_TARGET)" >> $d/NATIVE_LIBS.txt
           legal $d capi
@@ -166,7 +167,8 @@ jobs:
           tools/fetch-android.sh
           [ -n "$WZ_ANDROID_KEYSTORE_B64" ] || { echo "release key secrets missing" >&2; exit 1; }
           echo "$WZ_ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
-          WZ_VERSION=${GITHUB_REF_NAME#v} WZ_ANDROID_KEYSTORE="$RUNNER_TEMP/release.jks" JAVA_HOME= ANDROID_HOME= android/build.sh
+          V=${GITHUB_REF_NAME#v}; [[ "$GITHUB_REF" == refs/tags/v* ]] || V=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          WZ_VERSION=$V WZ_ANDROID_KEYSTORE="$RUNNER_TEMP/release.jks" JAVA_HOME= ANDROID_HOME= android/build.sh
           rm -f "$RUNNER_TEMP/release.jks"
       - uses: actions/upload-artifact@v4
         with:

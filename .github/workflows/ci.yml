@@ -62,7 +62,7 @@ jobs:
         run: |
           set -eu
           cargo build --release -p warpzone-capi
-          L=$(cargo rustc -q --release -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' | cut -d' ' -f2-)
+          L=$(cargo rustc -q --color never --release -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*' | cut -d' ' -f2-)
           make -C examples/c LDLIBS="$L"
 
   android:

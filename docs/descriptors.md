@@ -63,8 +63,9 @@ unpack = "extract"                # extract (default: .tar.gz / .zip) or file
 assets = { linux = "game-*-linux-x86_64.tar.gz", deck = "game-*-linux-x86_64.tar.gz", windows = "game-*-windows-x86_64.zip", portmaster = "game-*-portmaster.zip" }
 ```
 
-Asset patterns use `*`. Platforms: `linux`, `windows`, `deck` (falls back to
-`linux`), `portmaster` (download button only), `android` (an APK: the
+Asset patterns use `*`. Platforms: `linux`, `windows`, `macos` (one build
+for Apple Silicon and Intel, normally universal; servers before 0.1.11
+reject the key), `deck` (falls back to `linux`), `portmaster` (download button only), `android` (an APK: the
 [Android launcher](launcher.md#android) shows only games that have one, and
 installs it through Android's package installer; servers before 0.1.6 reject
 the key). The launcher verifies every

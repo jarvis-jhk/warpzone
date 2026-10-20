@@ -31,7 +31,19 @@ port recorded in `<data>/launcher.port`) and exits, so invite links and
 | `<data>/cache/griddb/` | SteamGridDB grid lists (kept a week) and downloaded tile pictures |
 
 `<data>` is `~/.local/share/warpzone` on Linux (or `$XDG_DATA_HOME/warpzone`),
-`%APPDATA%\warpzone` on Windows; `WARPZONE_HOME` overrides it.
+`%APPDATA%\warpzone` on Windows, `~/Library/Application Support/warpzone`
+on macOS; `WARPZONE_HOME` overrides it.
+
+## macOS
+
+`warpzone-launcher-<version>-macos-universal.tar.gz` (0.1.11+) holds
+`Warpzone.app`, one universal binary for Apple Silicon and Intel, macOS 11
+or newer. It is ad-hoc signed, not notarised: move it to Applications and
+open it the first time with right-click → *Open* (macOS 15: *System
+Settings → Privacy & Security → Open Anyway*). It updates its own binary
+like the Linux tarball. The library shows games whose descriptor has a
+`macos` build. Not on macOS yet: autostart (background mode), desktop
+notifications, `warpzone://` links and *Add to Steam*.
 
 ## The launcher updating itself
 
