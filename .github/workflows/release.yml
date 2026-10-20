@@ -47,8 +47,8 @@ jobs:
           # C library: x86_64 glibc, aarch64 glibc 2.27 (PortMaster handhelds), mingw.
           cargo build --release -p warpzone-capi
           # rustc prints the list only when it compiles (touch) and, with CARGO_TERM_COLOR=always, wrapped in escapes (--color never).
-          libs() { touch crates/capi/src/lib.rs; cargo rustc -q --color never --release -p warpzone-capi --crate-type staticlib $1 -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*'; }
-          pkg() { d=libwarpzone-$V-$1; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp $2 $d/lib/; legal $d capi; echo "$3" > $d/NATIVE_LIBS.txt; tar -czf dist/$d.tar.gz $d; rm -rf $d; }
+          libs() { touch crates/capi/src/lib.rs; cargo rustc -q --color never --release -p warpzone-capi --crate-type staticlib -- --print native-static-libs 2>&1 | grep -o 'native-static-libs: .*'; }
+          pkg() { [ -n "$3" ] || { echo "no native libs for $1" >&2; exit 1; }; d=libwarpzone-$V-$1; mkdir -p $d/lib $d/include; cp crates/capi/include/warpzone.h $d/include/; cp $2 $d/lib/; legal $d capi; echo "$3" > $d/NATIVE_LIBS.txt; tar -czf dist/$d.tar.gz $d; rm -rf $d; }
           pkg x86_64-linux-gnu "target/release/libwarpzone.a target/release/libwarpzone.so" "$(libs)"
           cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.27 -p warpzone-capi
           pkg aarch64-linux-gnu "target/aarch64-unknown-linux-gnu/release/libwarpzone.a target/aarch64-unknown-linux-gnu/release/libwarpzone.so" "native-static-libs: -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc"

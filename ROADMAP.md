@@ -10,14 +10,10 @@ Order is priority. Done items move to the [changelog](CHANGELOG.md).
    16-player shared screens), GTetrinet NG, The Settlers II: Coop (next to the
    RTTR lobby), OpenTS Co-op (verify the tier-0 lobby end to end), the Diablo
    ports. Warpzone follows their needs.
-2. **macOS support**, since every game is getting a macOS build:
-   `libwarpzone` (`crates/capi`) and the client tooling (`wz`, the launcher)
-   build and pass their tests in CI on GitHub macOS runners, Apple Silicon
-   (`macos-14`) and Intel (`macos-13`); release artefacts include the macOS
-   libraries (arm64 and x86_64, or one universal binary) with `warpzone.h`,
-   ready for a game to link; and [integration](docs/integration.md) says how a
-   game links Warpzone on macOS (linker flags, install name / rpath, code
-   signing and notarisation of a bundled dylib).
+2. **macOS, the rest** (libraries, `wz` and the launcher are out since
+   0.1.11): the launcher's autostart / background mode, notifications,
+   `warpzone://` links and *Add to Steam* on macOS; a notarised, signed
+   launcher once there is an Apple Developer ID.
 3. **LAN play without internet**, seamlessly: everything works as it does
    now — same UI in the launcher and in games, same rooms, codes and
    joining — but when devices have no internet and share a LAN, they find

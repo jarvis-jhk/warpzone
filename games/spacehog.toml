@@ -21,10 +21,10 @@ requires = "the original Operation Spacehog freeware data (SPACEHOG.DAT and thre
 github = "jarvis-jhk/spacehog"
 prerelease = true
 checksums = "SHA256SUMS"
-assets = { linux = "spacehog-linux-x86_64.tar.gz", deck = "spacehog-linux-x86_64.tar.gz", windows = "spacehog-windows-x86_64.zip" }
+assets = { linux = "spacehog-linux-x86_64.tar.gz", deck = "spacehog-linux-x86_64.tar.gz", windows = "spacehog-windows-x86_64.zip", macos = "spacehog-macos-universal.tar.gz" }
 
 [launch]
-exec = { linux = "spacehog/spacehog", deck = "spacehog/spacehog", windows = "spacehog/spacehog.exe" }
+exec = { linux = "spacehog/spacehog", deck = "spacehog/spacehog", windows = "spacehog/spacehog.exe", macos = "spacehog/spacehog" }
 
 [rooms]
 max_players = 4

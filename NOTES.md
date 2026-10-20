@@ -1,5 +1,25 @@
 # Notes
 
+- 2026-10-20 (request t_mvg3xqsgvasri, spacehog lane via report API:
+  macOS libwarpzone + launcher; CI failures t_mvg4fck9ytu0a/t_mvg4fi6ez2ev9
+  were this work's own first macOS run): RELEASED v0.1.11. Platform `macos`
+  in descriptors (server 0.1.11+ accepts it), core install::platform(),
+  launcher runs_on. CI `macos` job (macos-14, MACOSX_DEPLOYMENT_TARGET 11.0:
+  build + tests, x86_64 cross build, C example). Release `macos` job:
+  libwarpzone-V-universal-apple-darwin.tar.gz (lipo'd .a + .dylib with
+  install name @rpath; NATIVE_LIBS = -liconv -lSystem -lc -lm, no
+  frameworks; C example linked against it for both arches),
+  wz-V-macos-universal.tar.gz, warpzone-launcher-V-macos-universal.tar.gz
+  (Warpzone.app from packaging/macos/build-app.sh, ad-hoc signed, not
+  notarised). release.yml has a workflow_dispatch dry run (publish only on
+  tags). Found on the way: NATIVE_LIBS.txt of x86_64-linux-gnu was empty
+  since forever (`$1` unbound under set -u, hidden by `|| true`) and MSVC's
+  ended in an ANSI escape (CARGO_TERM_COLOR=always): --color never, and an
+  empty list now fails the build. games/spacehog.toml has the macos asset
+  (spacehog-macos-universal.tar.gz, exec spacehog/spacehog, from spacehog's
+  scripts/pack.sh). Not run on a real Mac: the launcher's macOS gaps
+  (autostart, notifications, warpzone:// links, Steam) are ROADMAP item 2.
+
 - 2026-10-19 (request t_mvfl9lwh3x4ga, report API relaying Jan's screenshot
   of v0.1.9: "the transparency on these icons stack"): desktop/Deck library
   tile drew not-yet-available capability glyphs in from_white_alpha(110);

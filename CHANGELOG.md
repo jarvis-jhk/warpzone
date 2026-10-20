@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.11
+
+**macOS**, for Apple Silicon and Intel (macOS 11 or newer):
+
+- `libwarpzone-0.1.11-universal-apple-darwin.tar.gz`: one universal
+  `libwarpzone.a` (and `libwarpzone.dylib`, install name
+  `@rpath/libwarpzone.dylib`) with `warpzone.h`, ready for a game to link;
+  docs/integration.md#macos says how (no frameworks needed).
+- `wz` and the launcher (`Warpzone.app`, ad-hoc signed, not notarised) as
+  universal builds. The launcher shows games with a macOS build, installs
+  and updates them, and updates itself.
+- Descriptors take a `macos` platform in `install.assets` and `launch.exec`.
+  Operation Spacehog has one.
+- CI builds and tests every client crate on macOS.
+
+Also: `NATIVE_LIBS.txt` was empty in the Linux x86_64 package and ended in
+a stray terminal colour code in the Windows MSVC one; both are clean now.
+
 ## 0.1.10
 
 - Launcher: the dimmed icons on a library tile (online, mods, ladder that are

@@ -67,7 +67,7 @@ Download `libwarpzone-<version>-<target>` from the
 | Linux aarch64, glibc ≥ 2.27 (PortMaster, Pi) | `libwarpzone-…-aarch64-linux-gnu.tar.gz` | same |
 | Windows, MSVC | `libwarpzone-…-x86_64-windows-msvc.zip` | `lib/warpzone.lib` + the system libraries in `NATIVE_LIBS.txt` |
 | Windows, MinGW / Zig | `libwarpzone-…-x86_64-windows-gnu.zip` | `lib/libwarpzone.a` + `-lws2_32 -luserenv -lntdll -lbcrypt -ladvapi32` (see `NATIVE_LIBS.txt`) |
-| macOS 11+, arm64 + x86_64 (universal) | `libwarpzone-…-universal-apple-darwin.tar.gz` | `lib/libwarpzone.a` + the frameworks and libraries in `NATIVE_LIBS.txt` (0.1.11+) |
+| macOS 11+, arm64 + x86_64 (universal) | `libwarpzone-…-universal-apple-darwin.tar.gz` | `lib/libwarpzone.a -liconv -lSystem -lc -lm` (no frameworks; see `NATIVE_LIBS.txt`), 0.1.11+ |
 
 Each package has `include/warpzone.h` and a shared library as an alternative.
 Pin the version and its SHA-256 from the release's `SHA256SUMS` in your build,
@@ -89,7 +89,8 @@ The macOS package holds one universal (arm64 + x86_64) `libwarpzone.a` and
 `libwarpzone.dylib`, built with `MACOSX_DEPLOYMENT_TARGET=11.0`, so a
 universal game links it once (`-arch arm64 -arch x86_64`) and a game built
 for only one architecture takes its slice. Link the static library with the
-first line of `NATIVE_LIBS.txt` (after `native-static-libs:`), e.g.
+first line of `NATIVE_LIBS.txt` (after `native-static-libs:`; currently
+`-liconv -lSystem -lc -lm`, no frameworks), e.g.
 
 ```sh
 cc -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 game.o \
