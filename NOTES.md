@@ -19,6 +19,10 @@
   (spacehog-macos-universal.tar.gz, exec spacehog/spacehog, from spacehog's
   scripts/pack.sh). Not run on a real Mac: the launcher's macOS gaps
   (autostart, notifications, warpzone:// links, Steam) are ROADMAP item 2.
+  DEPLOYED 0.1.11 on vtt (backup backups/warpzone-0.1.6.db*; override pinned
+  to 0.1.11; server.toml [launcher] assets has macos; spacehog.toml pushed),
+  healthy, launcher release lists macos. CI-built APK published to apkup
+  (versionCode 1011). Asked spacehog lane to adopt it (t_mvg5dyxh10cwfq).
 
 - 2026-10-19 (request t_mvfl9lwh3x4ga, report API relaying Jan's screenshot
   of v0.1.9: "the transparency on these icons stack"): desktop/Deck library
