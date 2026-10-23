@@ -1,0 +1,46 @@
+# OpenS4 — JARVIS's clean-room engine for The Settlers IV (History Edition, all
+# add-ons), native on Linux and Windows. Needs the player's own copy of the
+# game; the game reads the folder the launcher found from WARPZONE_DATA_GAME.
+# Its own lobby already runs over Warpzone (private code rooms, chat only
+# there); launcher join/host, a room browser, ladders and maps as mods follow.
+id = "opens4"
+name = "OpenS4"
+tagline = "The Settlers IV with all add-ons, native on Linux and Windows, with online games that survive dropped players and crashed hosts."
+description = """
+A free, open-source engine for The Settlers IV — History Edition: all four tribes and the Dark Tribe, the campaigns and add-ons, computer players, saves. Linux, Windows and the Steam Deck.
+
+Multiplayer runs over Warpzone with private room codes: dropped players reconnect into their own settlement, a crashed host is replaced by the next player, network games are autosaved on every machine, and desyncs are repaired instead of ending the game.
+
+You need your own copy of the game; OpenS4 contains no game data. Not affiliated with or endorsed by Ubisoft or Blue Byte."""
+homepage = "https://github.com/jarvis-jhk/opens4"
+accent = "#b45309"
+steamgriddb = 5248521   # The Settlers 4: Gold Edition
+motif = "castle"
+tier = 0
+status = "preview"
+requires = "your own The Settlers IV — History Edition (Ubisoft Connect) or Gold Edition installation"
+
+[install]
+github = "jarvis-jhk/opens4"
+prerelease = true
+checksums = "SHA256SUMS"
+assets = { linux = "opens4-*-linux-x86_64.tar.gz", deck = "opens4-*-linux-x86_64.tar.gz", windows = "opens4-*-windows-x86_64.zip" }
+
+[launch]
+exec = { linux = "opens4-*/s4", deck = "opens4-*/s4", windows = "opens4-*/s4.exe" }
+
+[rooms]
+max_players = 8
+presets = [{ id = "conflict", label = "conflict" }, { id = "coop", label = "cooperation" }]
+display = [{ key = "map", label = "Map" }]
+
+[[data]]
+id = "game"
+label = "The Settlers IV game files (History Edition or Gold Edition)"
+description = "An installed copy: the folder with Gfx, Map and S4_Main.exe (History Edition) or S4.exe (Gold Edition). Ubisoft Connect installs inside Wine or Proton are found too; otherwise add the folder below. OpenS4 reads the files from there and never changes them."
+files = ["./S4_Main.exe", "./S4.exe"]
+gog = ["Ubisoft/Ubisoft Game Launcher/games/thesettlers4", "Ubisoft Game Launcher/games/thesettlers4", "Settlers 4 Gold", "Settlers4Gold"]
+discs = false
+buy = [{ label = "Ubisoft Store (History Edition)", url = "https://www.ubisoft.com/en-us/games/the-settlers-iv-history-edition" }]
+# No import or copy (8 GB): the launcher passes the folder it found as
+# WARPZONE_DATA_GAME on every start, and the game loads the files from there.
